@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     NTFY_TOPIC=rairu-devculture67 \
@@ -7,22 +7,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         openssh-server \
-        wget \
         curl \
         python3 \
         vim \
         sudo \
-        net-tools && \
+        net-tools \
+        wget \
+        htop \
+        git \
+        unzip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Bore v0.5.0
-RUN wget -q https://github.com/ekzhang/bore/releases/download/v0.5.0/bore-v0.5.0-x86_64-unknown-linux-musl.tar.gz \
-        -O /tmp/bore.tar.gz && \
-    tar -xzf /tmp/bore.tar.gz -C /usr/local/bin bore && \
-    chmod +x /usr/local/bin/bore && \
-    rm /tmp/bore.tar.gz
+# Copy bore binary
+COPY bore /usr/local/bin/bore
+RUN chmod +x /usr/local/bin/bore && bore --version
 
-# Setup SSH + root password
+# Setup SSH + root
 RUN mkdir -p /run/sshd && \
     echo "root:craxid" | chpasswd && \
     ssh-keygen -A
