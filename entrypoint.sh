@@ -28,13 +28,22 @@ notify "VPS Railway Starting..." "SSH aktif, menghubungkan bore tunnel..." "defa
 # Auto-reconnect loop
 while true; do
   log "Menghubungkan ke $BORE_SERVER port $SSH_PORT..."
+  
+  # Hapus log lama
+  > /tmp/bore.log
+  
   bore local "$SSH_PORT" --to "$BORE_SERVER" > /tmp/bore.log 2>&1 &
   BORE_PID=$!
 
+  # Parse port: cari pola "bore.pub:PORT" bukan angka sembarangan
   PORT=""
-  for i in $(seq 1 20); do
+  for i in $(seq 1 30); do
     sleep 1
-    PORT=$(grep -oE '[0-9]{4,5}' /tmp/bore.log 2>/dev/null | head -1)
+    # Bore output: "listening at bore.pub:XXXXX"
+    PORT=$(grep -oE "${BORE_SERVER}:[0-9]+" /tmp/bore.log 2>/dev/null | head -1 | cut -d: -f2)
+    [ -n "$PORT" ] && break
+    # Fallback: cari pola "port XXXXX"
+    [ -z "$PORT" ] && PORT=$(grep -iE "port [0-9]+" /tmp/bore.log 2>/dev/null | grep -oE "[0-9]{3,5}" | tail -1)
     [ -n "$PORT" ] && break
   done
 
@@ -45,6 +54,9 @@ while true; do
     log "  ssh root@$BORE_SERVER -p $PORT"
     log "  Password: craxid"
     log "========================================"
+    
+    # Tampilkan isi bore.log untuk debug
+    log "Bore output: $(cat /tmp/bore.log)"
 
     notify \
       "✅ VPS Railway AKTIF! Port: $PORT" \
@@ -52,7 +64,7 @@ while true; do
 Password: craxid" \
       "high" "computer,key"
   else
-    log "ERROR: Gagal dapat port bore."
+    log "ERROR: Gagal dapat port bore. Isi log:"
     cat /tmp/bore.log 2>/dev/null || true
     notify "⚠️ VPS Bore GAGAL" "Tunnel gagal. Cek log Railway." "urgent" "warning"
   fi
