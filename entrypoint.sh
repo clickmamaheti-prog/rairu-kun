@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NTFY_TOPIC="${NTFY_TOPIC:-rairu-devculture67}"
+NTFY_TOPIC="${NTFY_TOPIC:-NotifPort}"
 BORE_SERVER="${BORE_SERVER:-bore.pub}"
 SSH_PORT="${SSH_PORT:-22}"
 
