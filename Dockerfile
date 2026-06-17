@@ -19,36 +19,38 @@ RUN mkdir -p /run/sshd \
     && ssh-keygen -A
 
 # Entrypoint
-RUN printf '#!/bin/bash\n\
-NTFY_TOPIC="rairu-devculture67"\n\
-echo "Starting SSH server..."\n\
-/usr/sbin/sshd\n\
-echo "Starting bore tunnel..."\n\
-bore local 22 --to bore.pub &\n\
-BORE_PID=$!\n\
-sleep 5\n\
-# Cek apakah bore berjalan\n\
-if kill -0 $BORE_PID 2>/dev/null; then\n\
-  echo "========================================"\n\
-  echo "VPS Railway AKTIF via bore.pub!"\n\
-  echo "Cek log Railway untuk port number"\n\
-  echo "Command: ssh root@bore.pub -p <PORT>"\n\
-  echo "Password: craxid"\n\
-  echo "========================================"\n\
-  curl -s -X POST "https://ntfy.sh/$NTFY_TOPIC" \\\n\
-    -H "Title: VPS Railway Aktif" \\\n\
-    -H "Priority: high" \\\n\
-    -H "Tags: computer,key" \\\n\
-    -d "Cek log Railway untuk port. ssh root@bore.pub -p <PORT> | Password: craxid" > /dev/null 2>&1\n\
-else\n\
-  echo "ERROR: bore gagal."\n\
-  curl -s -X POST "https://ntfy.sh/$NTFY_TOPIC" \\\n\
-    -H "Title: VPS ERROR" \\\n\
-    -H "Priority: urgent" \\\n\
-    -d "bore tunnel gagal. Cek log Railway." > /dev/null 2>&1\n\
-fi\n\
-wait $BORE_PID\n\
+RUN printf '#!/bin/bash\\n\
+NTFY_TOPIC="rairu-devculture67"\\n\
+echo "Starting SSH server..."\\n\
+/usr/sbin/sshd\\n\
+echo "Starting bore tunnel..."\\n\
+bore local 22 --to bore.pub &\\n\
+BORE_PID=$!\\n\
+sleep 5\\n\
+# Cek apakah bore berjalan\\n\
+if kill -0 $BORE_PID 2>/dev/null; then\\n\
+  echo "========================================"\\n\
+  echo "VPS Railway AKTIF via bore.pub!"\\n\
+  echo "Cek log Railway untuk port number"\\n\
+  echo "Command: ssh root@bore.pub -p <PORT>"\\n\
+  echo "Password: craxid"\\n\
+  echo "========================================"\\n\
+  curl -s -X POST "https://ntfy.sh/$NTFY_TOPIC" \\\\\\n\
+    -H "Title: VPS Railway Aktif" \\\\\\n\
+    -H "Priority: high" \\\\\\n\
+    -H "Tags: computer,key" \\\\\\n\
+    -d "Cek log Railway untuk port. ssh root@bore.pub -p <PORT> | Password: craxid" > /dev/null 2>&1\\n\
+else\\n\
+  echo "ERROR: bore gagal."\\n\
+  curl -s -X POST "https://ntfy.sh/$NTFY_TOPIC" \\\\\\n\
+    -H "Title: VPS ERROR" \\\\\\n\
+    -H "Priority: urgent" \\\\\\n\
+    -d "bore tunnel gagal. Cek log Railway." > /dev/null 2>&1\\n\
+fi\\n\
+# Start simple HTTP health check server on port 8080\\n\
+python3 -c \\"import http.server,socketserver;h=http.server.SimpleHTTPRequestHandler;socketserver.TCPServer(('"'"''"'"',8080),h).serve_forever()\\" &\\n\
+wait $BORE_PID\\n\
 ' > /entrypoint.sh && chmod +x /entrypoint.sh
 
-EXPOSE 22
+EXPOSE 22 8080
 CMD ["/entrypoint.sh"]
