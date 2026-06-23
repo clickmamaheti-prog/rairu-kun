@@ -16,7 +16,7 @@ notify() {
 }
 
 log "============================================="
-log "  Ubuntu 20.04 VPS — clickmamaheti-prog"
+log "  Ubuntu 20.04 VPS + Ollama — clickmamaheti-prog"
 log "  ntfy topic: $NTFY_TOPIC"
 log "============================================="
 
@@ -43,8 +43,29 @@ else
   exit 1
 fi
 
+# Start Ollama
+log "Starting Ollama..."
+ollama serve &
+OLLAMA_PID=$!
+sleep 5
+if kill -0 $OLLAMA_PID 2>/dev/null; then
+  log "Ollama running PID=$OLLAMA_PID"
+else
+  log "Ollama gagal start"
+fi
+
+# Start Nginx
+log "Starting Nginx..."
+nginx
+sleep 2
+if pgrep nginx > /dev/null; then
+  log "Nginx running"
+else
+  log "Nginx gagal start"
+fi
+
 # Notif startup
-notify "VPS Booting..." "Ubuntu 20.04 startup. Menghubungkan bore tunnel SSH..." "default" "rocket"
+notify "VPS + Ollama Booting..." "Ubuntu 20.04 + Ollama startup. Menghubungkan bore tunnel..." "default" "rocket"
 
 # Fungsi bore tunnel
 bore_tunnel() {
@@ -60,7 +81,7 @@ bore_tunnel() {
       waited=$((waited+1))
       PORT=$(grep -oE "bore\.pub:[0-9]+" "$log_file" 2>/dev/null | head -1 | cut -d: -f2)
       [ -n "$PORT" ] && break
-      PORT=$(grep -oE ":[0-9]{4,5}" "$log_file" 2>/dev/null | grep -vE ":(22|80|443|8080)$" | head -1 | tr -d ":")
+      PORT=$(grep -oE ":[0-9]{4,5}" "$log_file" 2>/dev/null | grep -vE ":(22|80|443|8080|11434)$" | head -1 | tr -d ":")
       [ -n "$PORT" ] && break
     done
 
@@ -69,10 +90,16 @@ bore_tunnel() {
       echo "$PORT" > "/tmp/port_${lport}.txt"
       local UPTIME
       UPTIME=$(uptime -p 2>/dev/null || echo "baru start")
-      notify "VPS ONLINE! SSH Ready" "ssh root@bore.pub -p ${PORT}
+      if [ "$lport" = "22" ]; then
+        notify "VPS ONLINE! SSH Ready" "ssh root@bore.pub -p ${PORT}
 Password: ${ROOT_PASS}
 Uptime: $UPTIME
 ntfy.sh/${NTFY_TOPIC}" "high" "computer,key"
+      elif [ "$lport" = "80" ]; then
+        notify "Ollama UI Ready!" "Ollama Manager: http://bore.pub:${PORT}
+API: http://bore.pub:${PORT}/api
+SSH: bore.pub:$(cat /tmp/port_22.txt 2>/dev/null || echo ?)" "high" "robot"
+      fi
     else
       log "[$label] GAGAL dapat port. Log: $(head -3 $log_file 2>/dev/null)"
       notify "Tunnel Gagal [$label]" "Port $lport gagal. Retry..." "low" "warning"
@@ -92,8 +119,9 @@ ntfy.sh/${NTFY_TOPIC}" "high" "computer,key"
 monitor_loop() {
   while true; do
     sleep 300
-    local P22
+    local P22 P80
     P22=$(cat /tmp/port_22.txt 2>/dev/null || echo "?")
+    P80=$(cat /tmp/port_80.txt 2>/dev/null || echo "?")
     local UPTIME MEM LOAD
     UPTIME=$(uptime -p 2>/dev/null || echo "running")
     MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB/%dMB", $3, $2}' || echo "n/a")
@@ -101,11 +129,14 @@ monitor_loop() {
     notify "Status VPS 5min" "Uptime: $UPTIME
 RAM: $MEM
 Load: $LOAD
-SSH: bore.pub:$P22" "min" "bar_chart"
+SSH: bore.pub:$P22
+Ollama UI: bore.pub:$P80" "min" "bar_chart"
   done
 }
 
+# Start bore tunnels
 bore_tunnel 22 "SSH-22" &
+bore_tunnel 80 "OLLAMA-80" &
 monitor_loop &
 
 log "Semua service aktif. Sleep forever..."
