@@ -1,58 +1,191 @@
-# FREE VPS LIFETIME!!!
+<div align="center">
 
-### Specification 
-1. 7 GB of RAM 💽
-2. 1.2 TB Storage 💾
-3. Up to 100Gbps of speed 🚀
-4. 69 Core CPU 🚥
-5. Google Cloud Technology 🌐
+```
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║    ██████╗ ███████╗██╗   ██╗ ██████╗██╗   ██╗██╗  ████████╗ ║
+║    ██╔══██╗██╔════╝██║   ██║██╔════╝██║   ██║██║  ╚══██╔══╝ ║
+║    ██║  ██║█████╗  ██║   ██║██║     ██║   ██║██║     ██║    ║
+║    ██║  ██║██╔══╝  ╚██╗ ██╔╝██║     ██║   ██║██║     ██║    ║
+║    ██████╔╝███████╗ ╚████╔╝ ╚██████╗╚██████╔╝███████╗██║    ║
+║    ╚═════╝ ╚══════╝  ╚═══╝   ╚═════╝ ╚═════╝ ╚══════╝╚═╝    ║
+║                                                              ║
+║               ★  PREMIUM CLOUD VPS  ★                       ║
+╚══════════════════════════════════════════════════════════════╝
+              powered by: DevCulture ©2026 linux
+```
 
-### Deploy Tutorial for Railway
+# DevCulture Premium VPS
 
-1. Create [Railway Account](https://railway.app?referralCode=dG01iI) account or use an existing account.
+**Ubuntu 20.04 · Ollama AI · Multi-Port · Railway · ntfy Premium**
 
-2. Create [Ngrok Account](https://dashboard.ngrok.com/).
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-20.04_LTS-E95420?logo=ubuntu&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-AI_Server-000?logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-Tunnel-F38020?logo=cloudflare&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-00e5ff)
 
-3. Get [Ngrok Token](https://dashboard.ngrok.com/auth) click the `Authtoken`.
+</div>
 
-ps: One ngrok account can only use 1 active agent, if you want to run multiple agents you have upgrade your account.
+---
 
-## Time to Deploy!!!
+## ✨ Fitur Premium
 
-Click the Railway button at the Below 
+| Fitur | Keterangan |
+|-------|-----------|
+| 🖥 **Ubuntu 20.04 LTS** | OS premium DigitalOcean-grade |
+| 🔑 **SSH Multi-Port** | 22, 80, 443, 3000, 8080, 8888, 11434 |
+| 🎨 **DevCulture Banner** | Login SSH dengan banner cyan/pink premium |
+| 🤖 **Ollama AI** | LLM server gratis — smollm2, phi3, llama3 |
+| 🌐 **Web UI Premium** | Dashboard AI dengan tema gelap DevCulture |
+| ☁️ **Cloudflare Tunnel** | Domain statis HTTPS gratis |
+| 📲 **ntfy Premium** | Notifikasi bergaya profesional lengkap |
+| 🔄 **Auto-Update** | Model Ollama update otomatis tiap Senin |
+| 🐳 **Docker Ready** | Deploy ke Railway, Fly.io, atau VPS manapun |
+| 🆓 **100% Gratis** | Railway $5/bulan credit, semua tools gratis |
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/BzFWCH?referralCode=dG01iI)
+---
 
-Fill the `NGROK_TOKEN` with your Token.
+## 🚀 Deploy ke Railway
 
-`PORT` default port is 22.
+### 1. Fork repo ini
 
-`REGION` default Region is ap, But you can also change to the nearest server.
+### 2. Buat project di [railway.app](https://railway.app)
+- New Project → Deploy from GitHub → pilih repo ini
 
-## Bahasa Indonesia 🇮🇩
+### 3. Set Environment Variables
 
-### VPS Gratis SEUMUR HIDUP!!!
+```env
+NTFY_TOPIC=devculture-vps-kamu     # Ganti unik!
+ROOT_PASS=PasswordKamu123          # Password SSH
+AUTO_PULL_MODEL=smollm2            # Model AI default
+CLOUDFLARE_TUNNEL_TOKEN=eyJ...     # Opsional: domain statis
+TZ=Asia/Jakarta
+```
 
-### Tutorial Deploy VPS
-1. Buat [Akun Railway](https://railway.app?referralCode=dG01iI) atau gunakan akun yang ada.
+### 4. Subscribe ntfy di HP
+```
+ntfy.sh/devculture-vps-kamu
+```
 
-2. Buat atau login ke [Akun Ngrok](https://dashboard.ngrok.com/).
+---
 
-3. Dapatkan [Token Ngrok](https://dashboard.ngrok.com/auth) salin 'Authtoken'
+## 🎨 SSH Login Banner
 
-ps: Satu akun ngrok hanya dapat menggunakan 1 agen aktif, jika Anda ingin menjalankan beberapa agen, Anda harus mengupgrade akun Anda.
+Saat login SSH, tampil banner premium:
 
-## Waktunya Deploy 🔥
-Klik tombol dibawah ini ⬇️
+```
+╔══════════════════════════════════════════════════════════════╗
+║   ██████╗ ███████╗██╗   ██╗ ██████╗██╗   ██╗██╗  ████████╗  ║
+║   ██╔══██╗██╔════╝██║   ██║██╔════╝██║   ██║██║  ╚══██╔══╝  ║
+║   ██║  ██║█████╗  ██║   ██║██║     ██║   ██║██║     ██║     ║
+║   ██║  ██║██╔══╝  ╚██╗ ██╔╝██║     ██║   ██║██║     ██║     ║
+║   ██████╔╝███████╗ ╚████╔╝ ╚██████╗╚██████╔╝███████╗██║     ║
+║   ╚═════╝ ╚══════╝  ╚═══╝   ╚═════╝ ╚═════╝ ╚══════╝╚═╝     ║
+║                                                               ║
+║              ★  PREMIUM CLOUD VPS  ★                         ║
+╠═══════════════════════════════════════════════════════════════╣
+║  OS     │ Ubuntu 20.04 LTS                                    ║
+║  RAM    │ 1024MB / 2048MB (50%)                               ║
+║  Disk   │ 2.1GB/8GB (26%)                                     ║
+║  Ollama │ ● Online  (AI Model Server)                         ║
+║  SSH    │ bore.pub:XXXXX                                       ║
+║  Web UI │ http://bore.pub:XXXXX                               ║
+╚═══════════════════════════════════════════════════════════════╝
+              powered by: DevCulture ©2026 linux
+```
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/BzFWCH?referralCode=dG01iI)
+*(Warna cyan & pink gradient di terminal)*
 
-Isi ```NGROK_TOKEN``` dengan Tokenmu.
+---
 
-Isi `PORT` port bawaan 22.
+## 📲 Notifikasi ntfy Premium
 
-Isi `REGION` Region bawaan ap, tapi kamu juga bisa mengubah ke server terdekat.
+Semua notif bergaya profesional dengan branding DevCulture:
 
-## Enjoy the vps? Let's Treat the author to coffee ☕
+| Event | Notifikasi |
+|-------|-----------|
+| 🚀 Startup | Booting dengan info lengkap |
+| ⚡ VPS Online | SSH port + URL + server stats |
+| ⬇️ Download Model | Progress model AI |
+| ✅ Model Siap | Info model + cara pakai |
+| ☁️ Domain Live | Cloudflare Tunnel aktif |
+| 📊 Status 5-menit | RAM, CPU, Disk, Models |
+| 🚨 Service Crash | Alert urgent + auto-restart |
+| ✅ Deploy | GitHub Actions berhasil |
 
-paypal: https://paypal.me/dedeklender
+---
+
+## 🤖 Menggunakan Ollama
+
+### Via SSH
+```bash
+ssh root@bore.pub -p PORT
+ollama run smollm2
+ollama run phi3
+ollama list
+```
+
+### Via API
+```bash
+curl -X POST https://domain-kamu/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"model":"smollm2","messages":[{"role":"user","content":"Halo!"}],"stream":false}'
+```
+
+### Via Python (OpenAI SDK)
+```python
+from openai import OpenAI
+client = OpenAI(base_url="https://domain-kamu/api", api_key="ollama")
+response = client.chat.completions.create(
+    model="smollm2",
+    messages=[{"role":"user","content":"Halo!"}]
+)
+print(response.choices[0].message.content)
+```
+
+---
+
+## 📦 Model AI Gratis
+
+| Model | Size | RAM | Best For |
+|-------|------|-----|----------|
+| `smollm2` ⭐ | 270MB | ~400MB | Default, cepat |
+| `tinyllama` | 637MB | ~800MB | Chat ringan |
+| `phi3` ⭐ | 2.3GB | ~3GB | **Recommended** |
+| `llama3.2` | 2.0GB | ~3GB | Chat premium |
+| `deepseek-coder` | 776MB | ~1GB | Coding |
+| `mistral` | 4.1GB | ~5GB | Kualitas tinggi |
+
+---
+
+## 🏗 Struktur Proyek
+
+```
+rairu-kun/
+├── Dockerfile              # Ubuntu 20.04 + Ollama + bore + cloudflared
+├── entrypoint.sh           # Startup + SSH + Nginx + Ollama + ntfy premium
+├── devculture-banner.sh    # SSH login banner cyan/pink ANSI
+├── nginx-ollama.conf       # Nginx proxy Ollama API
+├── index.html              # DevCulture Ollama Web UI
+├── railway.json            # Railway config
+└── .github/workflows/
+    └── railway-deploy.yml  # Auto-deploy CI/CD
+```
+
+---
+
+<div align="center">
+
+**Dibuat dengan ❤️ oleh [DevCulture](https://github.com/clickmamaheti-prog)**
+
+*Premium VPS · AI Gratis · Tidak Perlu VPS Mahal*
+
+⭐ **Star repo ini jika membantu!** ⭐
+
+```
+powered by: DevCulture ©2026 linux
+```
+
+</div>
