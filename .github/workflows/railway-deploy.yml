@@ -12,14 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🚀 Trigger Railway Deploy
+      - name: 🚀 Deploy to Railway via CLI
         run: |
-          RESULT=$(curl -s -X POST "https://backboard.railway.app/graphql/v2" \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"query":"mutation { serviceInstanceDeploy(serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\", environmentId: \"${{ secrets.RAILWAY_ENVIRONMENT_ID }}\") }"}')
-          echo "Response: $RESULT"
-          echo "$RESULT" | grep -q '"serviceInstanceDeploy":true' && echo "✅ Deploy triggered!" || { echo "❌ Failed: $RESULT"; exit 1; }
+          npm install -g @railway/cli
+          railway up --service ${{ secrets.RAILWAY_SERVICE_ID }} --environment ${{ secrets.RAILWAY_ENVIRONMENT_ID }} --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       - name: ✅ Notify Success
         if: success()
@@ -33,9 +31,8 @@ jobs:
 Commit  : ${{ github.sha }}
 Author  : ${{ github.actor }}
 Message : ${{ github.event.head_commit.message }}
-Time    : $(date '+%Y-%m-%d %H:%M:%S')
 
-VPS sedang restart dengan versi terbaru...
+VPS sedang rebuild dengan versi terbaru...
     powered by: DevCulture ©2026"
 
       - name: ❌ Notify Failure
