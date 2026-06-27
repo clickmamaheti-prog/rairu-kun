@@ -3,562 +3,438 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ollama Manager</title>
+<title>DevCulture VPS — Ollama AI</title>
 <style>
   :root {
-    --bg: #0f0f1a;
-    --card: #1a1a2e;
-    --card2: #16213e;
-    --accent: #6c63ff;
-    --accent2: #48c6ef;
-    --text: #e0e0e0;
-    --text2: #888;
-    --success: #00c853;
-    --danger: #ff5252;
-    --warning: #ffd740;
-    --border: #2a2a4a;
+    --bg: #0a0a12;
+    --card: #111120;
+    --card2: #0d0d1e;
+    --cyan: #00e5ff;
+    --pink: #ff4dc4;
+    --purple: #7c3aed;
+    --text: #e2e8f0;
+    --text2: #64748b;
+    --success: #10b981;
+    --danger: #ef4444;
+    --border: #1e1e3a;
+    --glow-c: rgba(0,229,255,0.15);
+    --glow-p: rgba(255,77,196,0.15);
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-  }
-  .header {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    padding: 20px 30px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 4px 20px rgba(108,99,255,0.3);
-  }
-  .header h1 { font-size: 1.5rem; color: #fff; }
-  .header .status {
-    display: flex; align-items: center; gap: 8px;
-    background: rgba(255,255,255,0.15);
-    padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; color: #fff;
-  }
-  .status-dot {
-    width: 10px; height: 10px; border-radius: 50%;
-    background: var(--success); animation: pulse 2s infinite;
-  }
-  .status-dot.offline { background: var(--danger); animation: none; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
-  }
-  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-  }
-  .card h2 {
-    font-size: 1.1rem; margin-bottom: 16px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .card h2 .icon { font-size: 1.3rem; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-  /* Model List */
-  .model-list { max-height: 300px; overflow-y: auto; }
-  .model-item {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; margin-bottom: 8px;
-    background: var(--card2); border-radius: 10px;
-    border: 1px solid var(--border);
-    transition: all 0.2s;
+  /* Header */
+  .header{
+    background:linear-gradient(135deg,#0a0a20,#12062a);
+    border-bottom:1px solid var(--border);
+    padding:0 30px;
+    height:64px;
+    display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:100;
+    box-shadow:0 4px 30px rgba(0,0,0,0.5);
   }
-  .model-item:hover { border-color: var(--accent); }
-  .model-item.selected { border-color: var(--accent); background: rgba(108,99,255,0.15); }
-  .model-info { flex: 1; }
-  .model-name { font-weight: 600; font-size: 0.95rem; }
-  .model-meta { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
-  .model-actions { display: flex; gap: 6px; }
-  .btn {
-    padding: 6px 14px; border: none; border-radius: 8px;
-    cursor: pointer; font-size: 0.8rem; font-weight: 600;
-    transition: all 0.2s;
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo-icon{
+    width:36px;height:36px;border-radius:8px;
+    background:linear-gradient(135deg,var(--cyan),var(--pink));
+    display:flex;align-items:center;justify-content:center;font-size:18px;
+    box-shadow:0 0 20px var(--glow-c);
   }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #5a52e0; }
-  .btn-danger { background: var(--danger); color: #fff; }
-  .btn-danger:hover { background: #e04545; }
-  .btn-success { background: var(--success); color: #fff; }
-  .btn-success:hover { background: #00a844; }
-  .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+  .logo-text{font-size:1.1rem;font-weight:700;
+    background:linear-gradient(90deg,var(--cyan),var(--pink));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .logo-sub{font-size:0.7rem;color:var(--text2);margin-top:2px}
+  .status-badge{
+    display:flex;align-items:center;gap:8px;
+    background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);
+    padding:6px 16px;border-radius:20px;font-size:0.8rem;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+  .dot.off{background:var(--danger);animation:none}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,185,129,0.4)}70%{opacity:0.7;box-shadow:0 0 0 6px transparent}}
 
-  /* Download */
-  .download-section { margin-top: 16px; }
-  .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
-  .input-group input, .input-group select {
-    flex: 1; padding: 10px 14px;
-    background: var(--card2); border: 1px solid var(--border);
-    border-radius: 10px; color: var(--text); font-size: 0.9rem;
-    outline: none;
+  .container{max-width:1280px;margin:0 auto;padding:24px 20px}
+
+  /* Stats bar */
+  .stats-bar{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+    margin-bottom:24px;
   }
-  .input-group input:focus, .input-group select:focus { border-color: var(--accent); }
-  .preset-models { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-  .preset-btn {
-    padding: 6px 12px; border-radius: 20px; font-size: 0.75rem;
-    background: var(--card2); border: 1px solid var(--border);
-    color: var(--text); cursor: pointer; transition: all 0.2s;
+  @media(max-width:768px){.stats-bar{grid-template-columns:repeat(2,1fr)}}
+  .stat{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:16px 20px;display:flex;align-items:center;gap:14px;
+    transition:border-color 0.2s;
   }
-  .preset-btn:hover { border-color: var(--accent); background: rgba(108,99,255,0.15); }
+  .stat:hover{border-color:var(--cyan)}
+  .stat-icon{font-size:1.8rem}
+  .stat-val{font-size:1.4rem;font-weight:700;
+    background:linear-gradient(135deg,var(--cyan),var(--pink));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .stat-lbl{font-size:0.72rem;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px}
+
+  /* Main grid */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:16px;padding:22px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.4);
+    transition:border-color 0.2s;
+  }
+  .card:hover{border-color:rgba(0,229,255,0.2)}
+  .card-header{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .card-title{font-size:0.95rem;font-weight:600}
+  .card-icon{font-size:1.2rem}
+
+  /* Model list */
+  .model-list{max-height:280px;overflow-y:auto}
+  .model-item{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 14px;margin-bottom:8px;
+    background:var(--card2);border:1px solid var(--border);border-radius:10px;
+    cursor:pointer;transition:all 0.2s;
+  }
+  .model-item:hover,.model-item.active{
+    border-color:var(--cyan);
+    background:rgba(0,229,255,0.05);
+    box-shadow:0 0 12px var(--glow-c);
+  }
+  .model-name{font-weight:600;font-size:0.9rem}
+  .model-size{font-size:0.75rem;color:var(--text2)}
+  .model-acts{display:flex;gap:6px}
+
+  /* Buttons */
+  .btn{padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s}
+  .btn-primary{background:linear-gradient(135deg,var(--cyan),#0080ff);color:#000}
+  .btn-primary:hover{opacity:0.85;box-shadow:0 0 16px var(--glow-c)}
+  .btn-pink{background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff}
+  .btn-pink:hover{opacity:0.85;box-shadow:0 0 16px var(--glow-p)}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-sm{padding:4px 10px;font-size:0.72rem}
+  .btn:disabled{opacity:0.4;cursor:not-allowed}
+
+  /* Input */
+  .input{
+    width:100%;padding:10px 14px;
+    background:var(--card2);border:1px solid var(--border);
+    border-radius:10px;color:var(--text);font-size:0.9rem;outline:none;
+    transition:border-color 0.2s;
+  }
+  .input:focus{border-color:var(--cyan);box-shadow:0 0 8px var(--glow-c)}
+  .input-row{display:flex;gap:8px;margin-bottom:12px}
 
   /* Progress */
-  .progress-container {
-    display: none; margin-top: 12px;
-    background: var(--card2); border-radius: 10px; padding: 12px;
-  }
-  .progress-container.active { display: block; }
-  .progress-bar {
-    height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 4px; transition: width 0.3s; width: 0%;
-  }
-  .progress-text { font-size: 0.8rem; color: var(--text2); margin-top: 6px; }
+  .progress-wrap{display:none;margin-top:12px;background:var(--card2);border-radius:10px;padding:14px}
+  .progress-wrap.show{display:block}
+  .progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--pink));border-radius:3px;transition:width 0.3s;width:0}
+  .progress-info{font-size:0.78rem;color:var(--text2);margin-top:8px}
 
   /* Chat */
-  .chat-container { grid-column: 1 / -1; }
-  .chat-messages {
-    height: 400px; overflow-y: auto;
-    background: var(--card2); border-radius: 12px;
-    padding: 16px; margin-bottom: 12px;
-    border: 1px solid var(--border);
+  .chat-full{grid-column:1/-1}
+  .chat-messages{
+    height:420px;overflow-y:auto;
+    background:var(--card2);border:1px solid var(--border);
+    border-radius:12px;padding:16px;margin-bottom:12px;
   }
-  .chat-msg { margin-bottom: 16px; animation: fadeIn 0.3s; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  .chat-msg .role {
-    font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
-    margin-bottom: 4px; letter-spacing: 0.5px;
+  .msg{margin-bottom:16px;animation:fadeUp 0.3s}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .msg-role{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+  .msg.user .msg-role{color:var(--cyan)}
+  .msg.assistant .msg-role{color:var(--pink)}
+  .msg-body{
+    padding:12px 16px;border-radius:10px;line-height:1.65;font-size:0.88rem;
+    white-space:pre-wrap;word-break:break-word;
   }
-  .chat-msg.user .role { color: var(--accent2); }
-  .chat-msg.assistant .role { color: var(--success); }
-  .chat-msg .content {
-    padding: 12px 16px; border-radius: 12px; line-height: 1.6; font-size: 0.9rem;
-  }
-  .chat-msg.user .content { background: rgba(108,99,255,0.15); }
-  .chat-msg.assistant .content { background: rgba(0,200,83,0.1); }
-  .chat-input-group { display: flex; gap: 8px; }
-  .chat-input-group input {
-    flex: 1; padding: 12px 16px;
-    background: var(--card2); border: 1px solid var(--border);
-    border-radius: 12px; color: var(--text); font-size: 0.95rem;
-    outline: none;
-  }
-  .chat-input-group input:focus { border-color: var(--accent); }
-  .typing-dots span {
-    display: inline-block; width: 8px; height: 8px;
-    background: var(--accent); border-radius: 50%;
-    margin: 0 2px; animation: typing 1.4s infinite;
-  }
-  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes typing {
-    0%, 60%, 100% { transform: translateY(0); }
-    30% { transform: translateY(-8px); }
-  }
-  .empty-state {
-    text-align: center; padding: 40px; color: var(--text2);
-  }
-  .empty-state .big-icon { font-size: 3rem; margin-bottom: 12px; }
+  .msg.user .msg-body{background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.15)}
+  .msg.assistant .msg-body{background:rgba(255,77,196,0.05);border:1px solid rgba(255,77,196,0.12)}
+  .chat-row{display:flex;gap:8px;align-items:flex-end}
+  .chat-row .input{border-radius:12px;resize:none}
+  .empty{text-align:center;padding:50px 20px;color:var(--text2)}
+  .empty-icon{font-size:3rem;margin-bottom:12px;opacity:0.5}
 
-  /* Stats */
-  .stats-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;
+  /* Preset chips */
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .chip{
+    padding:5px 12px;border-radius:16px;font-size:0.72rem;cursor:pointer;
+    background:var(--card2);border:1px solid var(--border);color:var(--text2);
+    transition:all 0.2s;
   }
-  .stat-box {
-    background: var(--card2); border-radius: 10px; padding: 14px; text-align: center;
-    border: 1px solid var(--border);
+  .chip:hover{border-color:var(--cyan);color:var(--cyan)}
+
+  /* Typing */
+  .typing span{
+    display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:var(--pink);margin:0 2px;animation:bounce 1.2s infinite;
   }
-  .stat-value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
-  .stat-label { font-size: 0.75rem; color: var(--text2); margin-top: 4px; }
+  .typing span:nth-child(2){animation-delay:.2s}
+  .typing span:nth-child(3){animation-delay:.4s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
 
   /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+  ::-webkit-scrollbar{width:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--cyan)}
 
-  .toast {
-    position: fixed; bottom: 20px; right: 20px;
-    padding: 12px 20px; border-radius: 10px;
-    color: #fff; font-size: 0.85rem; font-weight: 600;
-    z-index: 1000; animation: slideIn 0.3s;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  /* Toast */
+  .toast{
+    position:fixed;bottom:20px;right:20px;
+    padding:12px 20px;border-radius:10px;
+    color:#fff;font-size:0.82rem;font-weight:600;
+    z-index:9999;animation:slideIn 0.3s;
+    box-shadow:0 4px 20px rgba(0,0,0,0.5);
   }
-  .toast.success { background: var(--success); }
-  .toast.error { background: var(--danger); }
-  .toast.info { background: var(--accent); }
-  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .toast.ok{background:linear-gradient(135deg,#10b981,#059669)}
+  .toast.err{background:linear-gradient(135deg,#ef4444,#dc2626)}
+  .toast.info{background:linear-gradient(135deg,var(--cyan),#0080ff);color:#000}
+  @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+  /* Footer */
+  .footer{text-align:center;padding:20px;color:var(--text2);font-size:0.75rem;margin-top:20px}
+  .footer span{background:linear-gradient(90deg,var(--cyan),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>🦙 Ollama Manager</h1>
-  <div class="status">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Checking...</span>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-text">DevCulture VPS</div>
+      <div class="logo-sub">Premium Cloud · Ubuntu 20.04 · Ollama AI</div>
+    </div>
+  </div>
+  <div class="status-badge">
+    <div class="dot" id="dot"></div>
+    <span id="statusTxt">Connecting...</span>
   </div>
 </div>
 
 <div class="container">
-  <!-- Stats -->
-  <div class="card" style="margin-bottom:20px">
-    <h2><span class="icon">📊</span> Server Stats</h2>
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="stat-value" id="modelCount">0</div>
-        <div class="stat-label">Models Installed</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-value" id="totalSize">0 GB</div>
-        <div class="stat-label">Total Size</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-value" id="activeModel">-</div>
-        <div class="stat-label">Active Model</div>
-      </div>
-    </div>
+  <div class="stats-bar">
+    <div class="stat"><span class="stat-icon">🤖</span><div><div class="stat-val" id="modelCount">0</div><div class="stat-lbl">Models</div></div></div>
+    <div class="stat"><span class="stat-icon">💾</span><div><div class="stat-val" id="totalSize">-</div><div class="stat-lbl">Total Size</div></div></div>
+    <div class="stat"><span class="stat-icon">⚡</span><div><div class="stat-val" id="activeModel">-</div><div class="stat-lbl">Active Model</div></div></div>
+    <div class="stat"><span class="stat-icon">🌐</span><div><div class="stat-val" id="serverStatus">-</div><div class="stat-lbl">Server</div></div></div>
   </div>
 
   <div class="grid">
-    <!-- Model List -->
+    <!-- Models -->
     <div class="card">
-      <h2><span class="icon">📦</span> Installed Models</h2>
+      <div class="card-header"><span class="card-icon">📦</span><span class="card-title">Installed Models</span></div>
       <div class="model-list" id="modelList">
-        <div class="empty-state">
-          <div class="big-icon">📭</div>
-          <p>No models installed yet</p>
-        </div>
+        <div class="empty"><div class="empty-icon">🔍</div><p>Loading models...</p></div>
       </div>
     </div>
 
     <!-- Download -->
     <div class="card">
-      <h2><span class="icon">⬇️</span> Download Model</h2>
-      <div class="download-section">
-        <div class="preset-models">
-          <button class="preset-btn" onclick="setModel('llama3.2:1b')">llama3.2:1b</button>
-          <button class="preset-btn" onclick="setModel('llama3.2:3b')">llama3.2:3b</button>
-          <button class="preset-btn" onclick="setModel('llama3.1:8b')">llama3.1:8b</button>
-          <button class="preset-btn" onclick="setModel('phi3:mini')">phi3:mini</button>
-          <button class="preset-btn" onclick="setModel('gemma2:2b')">gemma2:2b</button>
-          <button class="preset-btn" onclick="setModel('gemma2:9b')">gemma2:9b</button>
-          <button class="preset-btn" onclick="setModel('mistral:7b')">mistral:7b</button>
-          <button class="preset-btn" onclick="setModel('qwen2.5:7b')">qwen2.5:7b</button>
-          <button class="preset-btn" onclick="setModel('codellama:7b')">codellama:7b</button>
-        </div>
-        <div class="input-group">
-          <input type="text" id="modelInput" placeholder="Enter model name (e.g., llama3.2:3b)">
-          <button class="btn btn-primary" onclick="downloadModel()" id="downloadBtn">Download</button>
-        </div>
-        <div class="progress-container" id="progressContainer">
-          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-          <div class="progress-text" id="progressText">Starting...</div>
-        </div>
+      <div class="card-header"><span class="card-icon">⬇️</span><span class="card-title">Download Model</span></div>
+      <div class="chips" id="presetChips"></div>
+      <div class="input-row">
+        <input class="input" id="modelInput" placeholder="e.g. phi3, llama3.2, mistral...">
+        <button class="btn btn-pink" id="dlBtn" onclick="downloadModel()">Pull</button>
+      </div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-info" id="progressInfo">Starting...</div>
+      </div>
+      <div style="margin-top:12px;font-size:0.78rem;color:var(--text2)">
+        <strong style="color:var(--cyan)">Free models:</strong><br>
+        smollm2 (270MB) • tinyllama (637MB) • gemma:2b (1.4GB) • phi3 (2.3GB) • llama3.2 (2GB) • mistral (4.1GB)
       </div>
     </div>
 
-    <!-- Chat -->
-    <div class="card chat-container">
-      <h2><span class="icon">💬</span> Chat <span id="chatModelName" style="font-size:0.8rem;color:var(--text2)"></span></h2>
-      <div class="chat-messages" id="chatMessages">
-        <div class="empty-state">
-          <div class="big-icon">💬</div>
-          <p>Select a model and start chatting!</p>
-        </div>
+    <!-- Chat full width -->
+    <div class="card chat-full">
+      <div class="card-header">
+        <span class="card-icon">💬</span>
+        <span class="card-title">Chat with AI</span>
+        <span id="chatModelBadge" style="margin-left:8px;font-size:0.75rem;background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);padding:3px 10px;border-radius:10px;color:var(--cyan)"></span>
+        <button class="btn btn-sm" onclick="clearChat()" style="margin-left:auto;background:var(--card2);border:1px solid var(--border);color:var(--text2)">Clear</button>
       </div>
-      <div class="chat-input-group">
-        <input type="text" id="chatInput" placeholder="Type your message... (Enter to send)" onkeydown="if(event.key==='Enter')sendMessage()">
-        <button class="btn btn-primary" onclick="sendMessage()" id="sendBtn">Send</button>
+      <div class="chat-messages" id="chatMsgs">
+        <div class="empty"><div class="empty-icon">🤖</div><p>Select a model and start chatting!</p><p style="margin-top:8px;font-size:0.8rem;color:var(--text2)">powered by <span style="color:var(--cyan)">DevCulture</span></p></div>
+      </div>
+      <div class="chat-row">
+        <input class="input" id="chatInput" placeholder="Type your message..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}">
+        <button class="btn btn-primary" id="sendBtn" onclick="sendMsg()">Send ➤</button>
       </div>
     </div>
   </div>
 </div>
 
+<div class="footer">powered by <span>DevCulture</span> ©2026 · Ubuntu 20.04 · Ollama AI</div>
+
 <script>
-const OLLAMA = window.location.origin;
+const API = '/api';
+const PRESETS = ['smollm2','tinyllama','phi3','gemma:2b','llama3.2','mistral','codellama:7b','deepseek-coder'];
+let models=[], selected='', msgs=[], downloading=false, generating=false;
 
-let selectedModel = '';
-let messages = [];
-let isDownloading = false;
-let isGenerating = false;
+// Init presets
+document.getElementById('presetChips').innerHTML = PRESETS.map(m=>
+  `<span class="chip" onclick="setPreset('${m}')">${m}</span>`).join('');
 
-// Check connection
-async function checkStatus() {
-  try {
-    const r = await fetch(OLLAMA + '/api/tags', { signal: AbortSignal.timeout(3000) });
-    if (r.ok) {
-      document.getElementById('statusDot').classList.remove('offline');
-      document.getElementById('statusText').textContent = 'Online';
-      return true;
-    }
-  } catch(e) {}
-  document.getElementById('statusDot').classList.add('offline');
-  document.getElementById('statusText').textContent = 'Offline';
-  return false;
+function setPreset(m){ document.getElementById('modelInput').value=m; }
+
+async function checkStatus(){
+  try{
+    const r=await fetch(API+'/tags',{signal:AbortSignal.timeout(5000)});
+    const ok=r.ok;
+    document.getElementById('dot').className='dot'+(ok?'':' off');
+    document.getElementById('statusTxt').textContent=ok?'Online':'Offline';
+    document.getElementById('serverStatus').textContent=ok?'Online':'Offline';
+    if(ok){ const d=await r.json(); models=d.models||[]; renderModels(); }
+  }catch{ document.getElementById('dot').className='dot off'; document.getElementById('statusTxt').textContent='Offline'; }
 }
 
-// Load models
-async function loadModels() {
-  try {
-    const r = await fetch(OLLAMA + '/api/tags');
-    const data = await r.json();
-    const models = data.models || [];
-    document.getElementById('modelCount').textContent = models.length;
+function fmtSize(b){ if(!b) return '?'; if(b>1e9) return (b/1e9).toFixed(1)+'GB'; return (b/1e6).toFixed(0)+'MB'; }
 
-    let totalBytes = 0;
-    const list = document.getElementById('modelList');
-
-    if (models.length === 0) {
-      list.innerHTML = `<div class="empty-state"><div class="big-icon">📭</div><p>No models installed yet</p></div>`;
-    } else {
-      list.innerHTML = models.map(m => {
-        totalBytes += m.size || 0;
-        const size = formatSize(m.size);
-        const isSelected = m.name === selectedModel;
-        return `
-          <div class="model-item ${isSelected ? 'selected' : ''}" id="model-${m.name.replace(/[:.]/g,'-')}">
-            <div class="model-info">
-              <div class="model-name">${m.name}</div>
-              <div class="model-meta">${size} · ${m.details?.parameter_size || '?'} · ${m.details?.quantization_level || '?'}</div>
-            </div>
-            <div class="model-actions">
-              <button class="btn btn-success btn-sm" onclick="selectModel('${m.name}')">${isSelected ? '✓ Active' : 'Select'}</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteModel('${m.name}')">🗑️</button>
-            </div>
-          </div>`;
-      }).join('');
-    }
-
-    document.getElementById('totalSize').textContent = formatSize(totalBytes);
-  } catch(e) {
-    console.error('Failed to load models', e);
-  }
-}
-
-function formatSize(bytes) {
-  if (bytes >= 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
-  if (bytes >= 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
-  return (bytes / 1e3).toFixed(1) + ' KB';
-}
-
-// Select model
-function selectModel(name) {
-  selectedModel = name;
-  document.getElementById('activeModel').textContent = name.split(':')[0];
-  document.getElementById('chatModelName').textContent = `(${name})`;
-  loadModels();
-  showToast(`Selected: ${name}`, 'success');
-}
-
-// Set model input
-function setModel(name) {
-  document.getElementById('modelInput').value = name;
-}
-
-// Download model
-async function downloadModel() {
-  const name = document.getElementById('modelInput').value.trim();
-  if (!name) { showToast('Enter a model name', 'error'); return; }
-  if (isDownloading) { showToast('Download in progress...', 'info'); return; }
-
-  isDownloading = true;
-  document.getElementById('downloadBtn').disabled = true;
-  document.getElementById('downloadBtn').textContent = '⏳ Downloading...';
-  const pc = document.getElementById('progressContainer');
-  const pf = document.getElementById('progressFill');
-  const pt = document.getElementById('progressText');
-  pc.classList.add('active');
-  pf.style.width = '0%';
-  pt.textContent = 'Starting download...';
-
-  try {
-    const res = await fetch(OLLAMA + '/api/pull', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, stream: true })
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const d = JSON.parse(line);
-          if (d.total && d.completed) {
-            const pct = Math.round((d.completed / d.total) * 100);
-            pf.style.width = pct + '%';
-            pt.textContent = `${d.status || ''} ${formatSize(d.completed)} / ${formatSize(d.total)} (${pct}%)`;
-          } else if (d.status) {
-            pt.textContent = d.status;
-          }
-        } catch(e) {}
-      }
-    }
-
-    showToast(`✅ Model "${name}" downloaded!`, 'success');
-    loadModels();
-    selectModel(name);
-  } catch(e) {
-    showToast('Download failed: ' + e.message, 'error');
-  } finally {
-    isDownloading = false;
-    document.getElementById('downloadBtn').disabled = false;
-    document.getElementById('downloadBtn').textContent = 'Download';
-    setTimeout(() => pc.classList.remove('active'), 3000);
-  }
-}
-
-// Delete model
-async function deleteModel(name) {
-  if (!confirm(`Delete model "${name}"?`)) return;
-  try {
-    await fetch(OLLAMA + '/api/delete', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
-    });
-    if (selectedModel === name) {
-      selectedModel = '';
-      document.getElementById('activeModel').textContent = '-';
-      document.getElementById('chatModelName').textContent = '';
-    }
-    showToast(`Deleted: ${name}`, 'info');
-    loadModels();
-  } catch(e) {
-    showToast('Delete failed: ' + e.message, 'error');
-  }
-}
-
-// Chat
-async function sendMessage() {
-  const input = document.getElementById('chatInput');
-  const text = input.value.trim();
-  if (!text) return;
-  if (!selectedModel) { showToast('Select a model first!', 'error'); return; }
-  if (isGenerating) return;
-
-  input.value = '';
-  isGenerating = true;
-  document.getElementById('sendBtn').disabled = true;
-  document.getElementById('sendBtn').textContent = '⏳';
-
-  messages.push({ role: 'user', content: text });
-  renderMessages();
-
-  // Show typing
-  const msgs = document.getElementById('chatMessages');
-  const typing = document.createElement('div');
-  typing.className = 'chat-msg assistant';
-  typing.id = 'typing';
-  typing.innerHTML = `<div class="role">Assistant</div><div class="content"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
-  msgs.appendChild(typing);
-  msgs.scrollTop = msgs.scrollHeight;
-
-  try {
-    const res = await fetch(OLLAMA + '/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: selectedModel, messages, stream: true })
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let assistantMsg = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const d = JSON.parse(line);
-          if (d.message?.content) {
-            assistantMsg += d.message.content;
-            // Update typing with streaming content
-            const t = document.getElementById('typing');
-            if (t) {
-              t.querySelector('.content').textContent = assistantMsg;
-              msgs.scrollTop = msgs.scrollHeight;
-            }
-          }
-        } catch(e) {}
-      }
-    }
-
-    messages.push({ role: 'assistant', content: assistantMsg });
-    renderMessages();
-  } catch(e) {
-    showToast('Chat error: ' + e.message, 'error');
-    const t = document.getElementById('typing');
-    if (t) t.remove();
-  } finally {
-    isGenerating = false;
-    document.getElementById('sendBtn').disabled = false;
-    document.getElementById('sendBtn').textContent = 'Send';
-  }
-}
-
-function renderMessages() {
-  const msgs = document.getElementById('chatMessages');
-  if (messages.length === 0) {
-    msgs.innerHTML = `<div class="empty-state"><div class="big-icon">💬</div><p>Select a model and start chatting!</p></div>`;
+function renderModels(){
+  const el=document.getElementById('modelList');
+  document.getElementById('modelCount').textContent=models.length;
+  const total=models.reduce((s,m)=>s+(m.size||0),0);
+  document.getElementById('totalSize').textContent=fmtSize(total);
+  if(!models.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><p>No models yet</p><p style="font-size:0.8rem;margin-top:8px;color:var(--text2)">Pull a model above to get started</p></div>';
     return;
   }
-  // Remove typing indicator
-  const typing = document.getElementById('typing');
-  if (typing) typing.remove();
-
-  msgs.innerHTML = messages.map(m => `
-    <div class="chat-msg ${m.role}">
-      <div class="role">${m.role === 'user' ? '👤 You' : '🦙 ' + selectedModel}</div>
-      <div class="content">${escapeHtml(m.content).replace(/\n/g, '<br>')}</div>
+  el.innerHTML=models.map(m=>`
+    <div class="model-item ${m.name===selected?'active':''}" onclick="selectModel('${m.name}')">
+      <div><div class="model-name">${m.name}</div><div class="model-size">${fmtSize(m.size)} · ${m.details?.parameter_size||''}</div></div>
+      <div class="model-acts">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();selectModel('${m.name}')">Chat</button>
+        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();delModel('${m.name}')">Del</button>
+      </div>
     </div>`).join('');
-  msgs.scrollTop = msgs.scrollHeight;
 }
 
-function escapeHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+function selectModel(n){
+  selected=n;
+  document.getElementById('activeModel').textContent=n.split(':')[0];
+  document.getElementById('chatModelBadge').textContent='🤖 '+n;
+  renderModels();
+  toast('Model selected: '+n,'info');
 }
 
-// Toast
-function showToast(msg, type) {
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  t.textContent = msg;
+async function downloadModel(){
+  const name=document.getElementById('modelInput').value.trim();
+  if(!name){ toast('Enter a model name','err'); return; }
+  if(downloading){ toast('Download in progress...','info'); return; }
+  downloading=true;
+  const btn=document.getElementById('dlBtn');
+  btn.disabled=true; btn.textContent='⏳ Pulling...';
+  const pw=document.getElementById('progressWrap');
+  const pf=document.getElementById('progressFill');
+  const pi=document.getElementById('progressInfo');
+  pw.classList.add('show'); pf.style.width='3%'; pi.textContent='Connecting...';
+  try{
+    const res=await fetch(API+'/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,stream:true})});
+    const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      for(const line of buf.split('\n').filter(Boolean)){
+        buf='';
+        try{
+          const d=JSON.parse(line);
+          if(d.total&&d.completed){
+            const pct=Math.round(d.completed/d.total*100);
+            pf.style.width=pct+'%';
+            pi.textContent=`${d.status||''} — ${fmtSize(d.completed)}/${fmtSize(d.total)} (${pct}%)`;
+          } else if(d.status) pi.textContent=d.status;
+        }catch{}
+      }
+    }
+    pf.style.width='100%'; pi.textContent='✅ Done!';
+    toast('✅ Model "'+name+'" ready!','ok');
+    await checkStatus(); selectModel(name);
+  }catch(e){ toast('Pull failed: '+e.message,'err'); }
+  finally{
+    downloading=false; btn.disabled=false; btn.textContent='Pull';
+    setTimeout(()=>pw.classList.remove('show'),3000);
+  }
+}
+
+async function delModel(name){
+  if(!confirm(`Delete "${name}"?`)) return;
+  try{
+    await fetch(API+'/delete',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    if(selected===name){ selected=''; document.getElementById('activeModel').textContent='-'; document.getElementById('chatModelBadge').textContent=''; }
+    toast('Deleted: '+name,'info'); await checkStatus();
+  }catch(e){ toast('Delete failed','err'); }
+}
+
+async function sendMsg(){
+  const input=document.getElementById('chatInput');
+  const text=input.value.trim();
+  if(!text) return;
+  if(!selected){ toast('Select a model first!','err'); return; }
+  if(generating) return;
+  input.value=''; generating=true;
+  const btn=document.getElementById('sendBtn');
+  btn.disabled=true; btn.textContent='⏳';
+  msgs.push({role:'user',content:text}); renderMsgs();
+  const chatEl=document.getElementById('chatMsgs');
+  const typingEl=document.createElement('div');
+  typingEl.className='msg assistant'; typingEl.id='typing';
+  typingEl.innerHTML='<div class="msg-role">🤖 '+selected+'</div><div class="msg-body"><div class="typing"><span></span><span></span><span></span></div></div>';
+  chatEl.appendChild(typingEl); chatEl.scrollTop=chatEl.scrollHeight;
+  try{
+    const res=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:selected,messages:msgs,stream:true})});
+    const reader=res.body.getReader(); const dec=new TextDecoder();
+    let buf='', reply='';
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      for(const line of buf.split('\n').filter(Boolean)){
+        buf='';
+        try{
+          const d=JSON.parse(line);
+          if(d.message?.content){
+            reply+=d.message.content;
+            const t=document.getElementById('typing');
+            if(t) t.querySelector('.msg-body').textContent=reply;
+            chatEl.scrollTop=chatEl.scrollHeight;
+          }
+        }catch{}
+      }
+    }
+    msgs.push({role:'assistant',content:reply}); renderMsgs();
+  }catch(e){ toast('Chat error: '+e.message,'err'); document.getElementById('typing')?.remove(); }
+  finally{ generating=false; btn.disabled=false; btn.textContent='Send ➤'; }
+}
+
+function renderMsgs(){
+  const el=document.getElementById('chatMsgs');
+  if(!msgs.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">🤖</div><p>Start chatting!</p></div>'; return;
+  }
+  document.getElementById('typing')?.remove();
+  el.innerHTML=msgs.map(m=>`
+    <div class="msg ${m.role}">
+      <div class="msg-role">${m.role==='user'?'👤 You':'🤖 '+selected}</div>
+      <div class="msg-body">${esc(m.content)}</div>
+    </div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function clearChat(){ msgs=[]; renderMsgs(); }
+
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function toast(msg,type){
+  const t=document.createElement('div');
+  t.className='toast '+type; t.textContent=msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(()=>t.remove(),300); },3000);
 }
 
-// Init
-(async () => {
-  await checkStatus();
-  await loadModels();
-  setInterval(checkStatus, 10000);
-})();
+(async()=>{ await checkStatus(); setInterval(checkStatus,15000); })();
 </script>
 </body>
 </html>
