@@ -2,7 +2,7 @@ FROM ubuntu:20.04
 
 ARG BUILD_DATE
 LABEL maintainer="DevCulture <devculture.id>" \
-      version="2.0" \
+      version="3.0" \
       description="DevCulture Premium VPS — Ubuntu 20.04 Multi-Port"
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -54,12 +54,11 @@ RUN mkdir -p /run/sshd && \
       -e 's/#TCPKeepAlive.*/TCPKeepAlive yes/' \
       /etc/ssh/sshd_config
 
-# DevCulture SSH banner (plain, for pre-auth)
-RUN printf "╔══════════════════════════════════════════════════╗\n║          D E V C U L T U R E   V P S            ║\n║             Premium Cloud Server                 ║\n╚══════════════════════════════════════════════════╝\n" \
-    > /etc/ssh/banner.txt && \
+# SSH banner
+RUN printf "DevCulture VPS\n" > /etc/ssh/banner.txt && \
     echo "Banner /etc/ssh/banner.txt" >> /etc/ssh/sshd_config
 
-# Nginx
+# Nginx base config (port will be set at runtime by entrypoint.sh)
 RUN rm -f /etc/nginx/sites-enabled/default
 COPY nginx-ollama.conf /etc/nginx/sites-available/ollama
 RUN ln -s /etc/nginx/sites-available/ollama /etc/nginx/sites-enabled/ollama
@@ -69,16 +68,15 @@ RUN mkdir -p /var/www/ollama-ui
 COPY index.html /var/www/ollama-ui/index.html
 RUN chmod -R 755 /var/www/ollama-ui
 
-# DevCulture login banner (ANSI colors, shown after SSH login)
+# DevCulture login banner
 COPY devculture-banner.sh /etc/profile.d/99-devculture-banner.sh
 RUN chmod +x /etc/profile.d/99-devculture-banner.sh
 
+# Cache bust for entrypoint changes
+ARG CACHEBUST=2
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 22 80 443 3000 8080 8888 11434
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
-    CMD curl -sf http://localhost:8080 > /dev/null || exit 1
 
 CMD ["/entrypoint.sh"]
