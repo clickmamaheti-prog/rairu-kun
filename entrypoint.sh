@@ -13,12 +13,29 @@ START_TIME=$(date '+%d %b %Y %H:%M:%S')
 log() { echo -e "[\033[1;96m$(date '+%H:%M:%S')\033[0m] \033[1;92m✦\033[0m $*"; }
 
 # ══════════════════════════════════════════
-# STEP 1: START HEALTH CHECK SERVER FIRST!
-# Railway healthcheck must respond within 2 min
+# STEP 1: Set root password
 # ══════════════════════════════════════════
-log "🏥 Starting health check server on port $PORT"
-python3 -c "
-import http.server, socketserver, os, sys
+log "Setting root password..."
+echo "root:${ROOT_PASS}" | chpasswd 2>/dev/null || true
+
+# ══════════════════════════════════════════
+# STEP 2: Configure Nginx to listen on $PORT
+# Railway only exposes one external port ($PORT)
+# ══════════════════════════════════════════
+log "Configuring Nginx on port $PORT..."
+sed -i "s/listen 80;/listen ${PORT};/" /etc/nginx/sites-available/ollama
+
+# ══════════════════════════════════════════
+# STEP 3: Start Nginx FIRST (Railway healthcheck)
+# Railway healthcheck: GET /health -> must respond fast
+# ══════════════════════════════════════════
+log "🏥 Starting Nginx (health check on port $PORT /health)..."
+nginx -t 2>/tmp/nginx-test.err && nginx 2>/tmp/nginx.err && log "✅ Nginx started on port $PORT" || {
+  log "⚠️ Nginx error: $(cat /tmp/nginx-test.err 2>/dev/null | head -5)"
+  # Fallback: minimal Python health server so Railway doesn't kill us
+  log "⚠️ Falling back to Python health server..."
+  python3 -c "
+import http.server, socketserver, os
 PORT = int(os.environ.get('PORT','8080'))
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -28,12 +45,14 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'DevCulture VPS - OK')
 socketserver.TCPServer.allow_reuse_address = True
-with socketserver.TCPServer(('',PORT),H) as s:
+with socketserver.TCPServer(('', PORT), H) as s:
     s.serve_forever()
 " &
-HEALTH_PID=$!
-sleep 2
-log "✅ Health check server ready (PID $HEALTH_PID, port $PORT)"
+  FALLBACK_PID=$!
+fi
+
+sleep 3
+log "✅ Health endpoint ready on port $PORT"
 
 # ══════════════════════════════════════════
 # ntfy notification
@@ -73,18 +92,12 @@ update_ssh_summary() {
 }
 
 # ══════════════════════════════════════════
-# STEP 2: Init & set password
-# ══════════════════════════════════════════
-log "Setting root password..."
-echo "root:${ROOT_PASS}" | chpasswd 2>/dev/null || true
-
-# ══════════════════════════════════════════
 # Send boot notification
 # ══════════════════════════════════════════
 notify "🚀 DevCulture VPS — Booting..." \
 "🔄 Status    : Initializing services...
 🖥  OS        : Ubuntu 20.04 LTS
-🔑  Ports     : 22, 80, 443, 3000, 8080, 8888
+🔑  Ports     : 22, 80, 443, 3000, ${PORT}
 🤖  AI Model  : ${AUTO_PULL_MODEL} (auto-pull)
 🕐  Time      : ${START_TIME}
 📲  Monitor   : ntfy.sh/${NTFY_TOPIC}
@@ -93,27 +106,19 @@ notify "🚀 DevCulture VPS — Booting..." \
 "default" "rocket,hourglass"
 
 # ══════════════════════════════════════════
-# STEP 3: SSH
+# STEP 4: SSH
 # ══════════════════════════════════════════
 log "Starting SSH..."
 mkdir -p /run/sshd
 /usr/sbin/sshd 2>/tmp/sshd.err && log "✅ SSH daemon started" || log "⚠️ SSH: $(cat /tmp/sshd.err)"
 
 # ══════════════════════════════════════════
-# STEP 4: Ollama
+# STEP 5: Ollama
 # ══════════════════════════════════════════
 log "Starting Ollama..."
 ollama serve >/tmp/ollama.log 2>&1 &
 OLLAMA_PID=$!
 log "✅ Ollama started (PID $OLLAMA_PID)"
-
-# ══════════════════════════════════════════
-# STEP 5: Nginx
-# ══════════════════════════════════════════
-log "Starting Nginx..."
-nginx -t 2>/tmp/nginx-test.err && nginx 2>/tmp/nginx.err && log "✅ Nginx started" || {
-  log "⚠️ Nginx error: $(cat /tmp/nginx-test.err 2>/dev/null | head -3)"
-}
 
 # ══════════════════════════════════════════
 # STEP 6: Cloudflare Tunnel (optional)
@@ -135,7 +140,7 @@ start_cf_tunnel() {
 start_cf_tunnel &
 
 # ══════════════════════════════════════════
-# STEP 7: Bore tunnels (all ports)
+# STEP 7: Bore tunnels (SSH & internal ports)
 # ══════════════════════════════════════════
 bore_tunnel() {
   local lport="$1" label="$2"
@@ -162,13 +167,12 @@ bore_tunnel() {
   done
 }
 
-bore_tunnel 22   "SSH-22"    &
-bore_tunnel 80   "HTTP-80"   &
+bore_tunnel 22   "SSH-22" &
 bore_tunnel 443  "HTTPS-443" &
-bore_tunnel 3000 "APP-3000"  &
-bore_tunnel 8888 "APP-8888"  &
+bore_tunnel 3000 "APP-3000" &
+bore_tunnel 8888 "APP-8888" &
 
-# Placeholder for ports that need a listener
+# Placeholder listeners for bore-tunneled ports
 python3 -c "
 import http.server,socketserver,threading,time,os
 class H(http.server.BaseHTTPRequestHandler):
@@ -211,7 +215,7 @@ Model  : $model
 Size   : ${SIZE}
 
 Chat via SSH:  ollama run $model
-Chat via Web:  http://bore.pub:<port>
+Chat via Web:  Akses via Railway URL
 
     powered by: DevCulture ©2026" \
     "high" "robot_face,white_check_mark,tada"
@@ -242,7 +246,6 @@ monitor_loop() {
   while true; do
     sleep 300; n=$((n+1))
     local P22=$(cat /tmp/port_22.txt 2>/dev/null); [ -z "$P22" ] && continue
-    local P80=$(cat /tmp/port_80.txt 2>/dev/null || echo "?")
     local MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB/%dMB (%.0f%%)",$3,$2,$3/$2*100}')
     local MODELS=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
     notify "📊 DevCulture VPS — Status #${n}" \
@@ -251,7 +254,7 @@ monitor_loop() {
 🤖 Ollama : $(pgrep ollama>/dev/null&&echo Online||echo Offline)
 📦 Models : ${MODELS:-(none)}
 🔑 SSH    : bore.pub:${P22}
-🌐 Web    : bore.pub:${P80}
+🌐 Web    : Railway URL (port ${PORT})
 
     powered by: DevCulture ©2026" \
     "min" "bar_chart,clock4"
@@ -260,10 +263,10 @@ monitor_loop() {
 ssh_wd & nginx_wd & ollama_wd & monitor_loop &
 
 # ══════════════════════════════════════════
-# STEP 10: Keep health server alive (wait)
+# STEP 10: Keep container alive
 # ══════════════════════════════════════════
-log "🟢 All services launched. Health server running on port $PORT"
+log "🟢 All services launched. Nginx running on port $PORT"
 log "📱 Subscribe ntfy: ntfy.sh/$NTFY_TOPIC"
 
-# Wait for health server (keeps container alive)
-wait $HEALTH_PID
+# Keep container alive by tailing logs
+tail -f /dev/null
