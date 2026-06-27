@@ -1,15 +1,1 @@
-{
-  "$schema": "https://schema.railway.app/railway-schema.json",
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
-  },
-  "deploy": {
-    "restartPolicyType": "ALWAYS",
-    "restartPolicyMaxRetries": 10,
-    "numReplicas": 1,
-    "startCommand": "/entrypoint.sh",
-    "healthcheckPath": "/",
-    "healthcheckTimeout": 60
-  }
-}
+{"$schema":"https://schema.railway.app/railway-schema.json","build":{"builder":"DOCKERFILE","dockerfilePath":"Dockerfile"},"deploy":{"restartPolicyType":"ALWAYS","restartPolicyMaxRetries":10,"numReplicas":1,"healthcheckPath":"/health","healthcheckTimeout":120}}
