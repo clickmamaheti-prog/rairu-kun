@@ -1,80 +1,54 @@
-name: Railway Auto Deploy
+name: 🚀 DevCulture VPS — Deploy to Railway
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-env:
-  WORKSPACE_ID: b1aeb915-817f-4ebc-91ee-aaa559db8e93
-  PROJECT_NAME: rairu-ollama-vps
-  REPO: clickmamaheti-prog/rairu-kun
-  NTFY_TOPIC: rairu-mamaheti
-
 jobs:
   deploy:
+    name: Deploy DevCulture VPS
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
     steps:
-      - name: Delete existing Railway projects
+      - uses: actions/checkout@v4
+
+      - name: 🚀 Trigger Railway Deploy
         run: |
-          echo "Mencari project Railway yang ada..."
-          PROJECTS=$(curl -s \
+          RESULT=$(curl -s -X POST "https://backboard.railway.app/graphql/v2" \
             -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -X POST "https://backboard.railway.app/graphql/v2" \
-            -d '{"query":"{ workspace(workspaceId: \"'"$WORKSPACE_ID"'\") { projects { edges { node { id name } } } } }"}' \
-            | node -e "const j=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); (j.data?.workspace?.projects?.edges||[]).forEach(e=>console.log(e.node.id));")
-          if [ -z "$PROJECTS" ]; then
-            echo "Tidak ada project yang perlu dihapus."
-          else
-            for PID in $PROJECTS; do
-              echo "Menghapus project $PID..."
-              curl -s \
-                -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-                -H "Content-Type: application/json" \
-                -X POST "https://backboard.railway.app/graphql/v2" \
-                -d "{\"query\":\"mutation { projectDelete(id: \\\"$PID\\\") }\"}"
-              sleep 5
-            done
-          fi
+            -d '{"query":"mutation { serviceInstanceDeploy(serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\", environmentId: \"${{ secrets.RAILWAY_ENVIRONMENT_ID }}\") }"}')
+          echo "Response: $RESULT"
+          echo "$RESULT" | grep -q '"serviceInstanceDeploy":true' && echo "✅ Deploy triggered!" || { echo "❌ Failed: $RESULT"; exit 1; }
 
-      - name: Wait Railway rate limit
-        run: sleep 40
-
-      - name: Create new Railway project
+      - name: ✅ Notify Success
+        if: success()
         run: |
-          RESULT=$(curl -s \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -X POST "https://backboard.railway.app/graphql/v2" \
-            -d "{\"query\":\"mutation { projectCreate(input: { name: \\\"$PROJECT_NAME\\\", defaultEnvironmentName: \\\"production\\\", workspaceId: \\\"$WORKSPACE_ID\\\" }) { id environments { edges { node { id } } } } }\"}")
-          PROJECT_ID=$(echo "$RESULT" | node -e "const j=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(j.data.projectCreate.id);")
-          ENV_ID=$(echo "$RESULT" | node -e "const j=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(j.data.projectCreate.environments.edges[0].node.id);")
-          echo "PROJECT_ID=$PROJECT_ID" >> $GITHUB_ENV
-          echo "ENV_ID=$ENV_ID" >> $GITHUB_ENV
-          echo "Project created: $PROJECT_ID"
+          curl -s -X POST "https://ntfy.sh/${{ secrets.NTFY_TOPIC }}" \
+            -H "Title: ✅ DevCulture — Deploy Berhasil!" \
+            -H "Priority: high" \
+            -H "Tags: white_check_mark,rocket,star2" \
+            -d "Deploy ke Railway berhasil!
 
-      - name: Deploy from GitHub
-        run: |
-          sleep 3
-          SERVICE_ID=$(curl -s \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -X POST "https://backboard.railway.app/graphql/v2" \
-            -d "{\"query\":\"mutation { githubRepoDeploy(input: { projectId: \\\"$PROJECT_ID\\\", repo: \\\"$REPO\\\", branch: \\\"main\\\", environmentId: \\\"$ENV_ID\\\" }) }\"}" \
-            | node -e "const j=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(j.data?.githubRepoDeploy||'err');")
-          echo "SERVICE_ID=$SERVICE_ID" >> $GITHUB_ENV
-          echo "Service deployed: $SERVICE_ID"
+Commit  : ${{ github.sha }}
+Author  : ${{ github.actor }}
+Message : ${{ github.event.head_commit.message }}
+Time    : $(date '+%Y-%m-%d %H:%M:%S')
 
-      - name: Set environment variables
+VPS sedang restart dengan versi terbaru...
+    powered by: DevCulture ©2026"
+
+      - name: ❌ Notify Failure
+        if: failure()
         run: |
-          sleep 3
-          curl -s \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -X POST "https://backboard.railway.app/graphql/v2" \
-            -d "{\"query\":\"mutation { variableCollectionUpsert(input: { projectId: \\\"$PROJECT_ID\\\", environmentId: \\\"$ENV_ID\\\", serviceId: \\\"$SERVICE_ID\\\", variables: { NTFY_TOPIC: \\\"$NTFY_TOPIC\\\", BORE_SERVER: \\\"bore.pub\\\", ROOT_PASS: \\\"craxid\\\", OLLAMA_HOST: \\\"0.0.0.0\\\" } }) }\"}" \
-            | node -e "const j=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log('Vars set:', j.data?.variableCollectionUpsert);"
-          echo "Deploy selesai! Pantau ntfy.sh/$NTFY_TOPIC untuk port SSH terbaru."
+          curl -s -X POST "https://ntfy.sh/${{ secrets.NTFY_TOPIC }}" \
+            -H "Title: ❌ DevCulture — Deploy GAGAL!" \
+            -H "Priority: urgent" \
+            -H "Tags: x,rotating_light,star2" \
+            -d "Deploy GAGAL!
+
+Commit : ${{ github.sha }}
+Author : ${{ github.actor }}
+
+Cek log: github.com/clickmamaheti-prog/rairu-kun/actions
+    powered by: DevCulture ©2026"
