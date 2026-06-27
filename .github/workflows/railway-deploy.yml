@@ -1,4 +1,4 @@
-name: 🚀 DevCulture VPS — Deploy to Railway
+name: Deploy to Railway
 
 on:
   push:
@@ -7,45 +7,31 @@ on:
 
 jobs:
   deploy:
-    name: Deploy DevCulture VPS
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🚀 Deploy to Railway via CLI
+      - name: Deploy to Railway
         run: |
           npm install -g @railway/cli
-          railway up --service ${{ secrets.RAILWAY_SERVICE_ID }} --environment ${{ secrets.RAILWAY_ENVIRONMENT_ID }} --detach
+          railway redeploy --service ${{ secrets.RAILWAY_SERVICE_ID }} --environment ${{ secrets.RAILWAY_ENVIRONMENT_ID }} --yes
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
-      - name: ✅ Notify Success
+      - name: Notify Success
         if: success()
-        run: |
-          curl -s -X POST "https://ntfy.sh/${{ secrets.NTFY_TOPIC }}" \
-            -H "Title: ✅ DevCulture — Deploy Berhasil!" \
-            -H "Priority: high" \
-            -H "Tags: white_check_mark,rocket,star2" \
-            -d "Deploy ke Railway berhasil!
+        run: >-
+          curl -s -X POST "https://ntfy.sh/${{ secrets.NTFY_TOPIC }}"
+          -H "Title: DevCulture Deploy Berhasil"
+          -H "Priority: high"
+          -H "Tags: white_check_mark,rocket"
+          -d "Deploy sukses! Commit ${{ github.sha }} by ${{ github.actor }}"
 
-Commit  : ${{ github.sha }}
-Author  : ${{ github.actor }}
-Message : ${{ github.event.head_commit.message }}
-
-VPS sedang rebuild dengan versi terbaru...
-    powered by: DevCulture ©2026"
-
-      - name: ❌ Notify Failure
+      - name: Notify Failure
         if: failure()
-        run: |
-          curl -s -X POST "https://ntfy.sh/${{ secrets.NTFY_TOPIC }}" \
-            -H "Title: ❌ DevCulture — Deploy GAGAL!" \
-            -H "Priority: urgent" \
-            -H "Tags: x,rotating_light,star2" \
-            -d "Deploy GAGAL!
-
-Commit : ${{ github.sha }}
-Author : ${{ github.actor }}
-
-Cek log: github.com/clickmamaheti-prog/rairu-kun/actions
-    powered by: DevCulture ©2026"
+        run: >-
+          curl -s -X POST "https://ntfy.sh/${{ secrets.NTFY_TOPIC }}"
+          -H "Title: DevCulture Deploy GAGAL"
+          -H "Priority: urgent"
+          -H "Tags: x,rotating_light"
+          -d "Deploy gagal! Cek https://github.com/clickmamaheti-prog/rairu-kun/actions"
