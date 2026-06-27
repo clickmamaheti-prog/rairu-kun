@@ -1,22 +1,46 @@
 #!/bin/bash
-set -e
+# DevCulture Premium VPS — Entrypoint
+# NO set -e : services are non-critical, health server must survive
 
 NTFY_TOPIC="${NTFY_TOPIC:-devculture-vps}"
 BORE_SERVER="${BORE_SERVER:-bore.pub}"
 ROOT_PASS="${ROOT_PASS:-DevCulture2026}"
 AUTO_PULL_MODEL="${AUTO_PULL_MODEL:-smollm2}"
 CF_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
+PORT="${PORT:-8080}"
 START_TIME=$(date '+%d %b %Y %H:%M:%S')
-HOSTNAME_VPS="devculture-vps"
 
 log() { echo -e "[\033[1;96m$(date '+%H:%M:%S')\033[0m] \033[1;92m✦\033[0m $*"; }
 
 # ══════════════════════════════════════════
-# PREMIUM ntfy Notification
+# STEP 1: START HEALTH CHECK SERVER FIRST!
+# Railway healthcheck must respond within 2 min
+# ══════════════════════════════════════════
+log "🏥 Starting health check server on port $PORT"
+python3 -c "
+import http.server, socketserver, os, sys
+PORT = int(os.environ.get('PORT','8080'))
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type','text/plain')
+        self.end_headers()
+        self.wfile.write(b'DevCulture VPS - OK')
+socketserver.TCPServer.allow_reuse_address = True
+with socketserver.TCPServer(('',PORT),H) as s:
+    s.serve_forever()
+" &
+HEALTH_PID=$!
+sleep 2
+log "✅ Health check server ready (PID $HEALTH_PID, port $PORT)"
+
+# ══════════════════════════════════════════
+# ntfy notification
 # ══════════════════════════════════════════
 notify() {
   local title="$1" body="$2" priority="${3:-default}" tags="${4:-star2}"
-  curl -s --max-time 10 --retry 2 \
+  curl -s --max-time 8 --retry 2 \
     -X POST "https://ntfy.sh/$NTFY_TOPIC" \
     -H "Title: $title" \
     -H "Priority: $priority" \
@@ -25,15 +49,11 @@ notify() {
     -d "$body" >/dev/null 2>&1 || true
 }
 
-notify_vps_online() {
-  local P22=$(cat /tmp/port_22.txt 2>/dev/null || echo "pending")
+update_ssh_summary() {
+  local P22=$(cat /tmp/port_22.txt 2>/dev/null)
+  [ -z "$P22" ] && return
   local P80=$(cat /tmp/port_80.txt 2>/dev/null || echo "pending")
-  local MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB / %dMB (%.0f%%)", $3,$2,$3/$2*100}')
-  local DISK=$(df -h / 2>/dev/null | awk 'NR==2{printf "%s/%s (%s)", $3,$2,$5}')
-  local CPU_CORES=$(nproc 2>/dev/null || echo "?")
-  local IP=$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null || echo "fetching...")
-  local MODELS=$(ollama list 2>/dev/null | tail -n +2 | awk '{printf "  • %s\n",$1}' | head -5 || echo "  (auto-pull in progress...)")
-
+  local MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB/%dMB",  $3,$2}')
   notify "⚡ DevCulture VPS — ONLINE!" \
 "╔══════════════════════════════════╗
 ║   DevCulture Premium VPS Ready   ║
@@ -43,57 +63,79 @@ notify_vps_online() {
     ssh root@bore.pub -p ${P22}
     Password: ${ROOT_PASS}
 
-🌐  Services
-    Web UI  → http://bore.pub:${P80}
-    API     → http://bore.pub:${P80}/api/
-    Ollama  → bore.pub:${P80}
-
-📊  Server Stats
-    IP      : ${IP}
-    RAM     : ${MEM}
-    Disk    : ${DISK}
-    CPU     : ${CPU_CORES} cores
-    Kernel  : $(uname -r 2>/dev/null)
-
-🤖  AI Models
-${MODELS}
-
-🕐  Started : ${START_TIME}
-📲  Monitor : ntfy.sh/${NTFY_TOPIC}
-──────────────────────────────────
-    powered by: DevCulture ©2026" \
-  "high" "star2,computer,white_check_mark,tada"
-}
-
-update_summary() {
-  local P22=$(cat /tmp/port_22.txt 2>/dev/null)
-  [ -z "$P22" ] && return
-  local P80=$(cat /tmp/port_80.txt 2>/dev/null || echo "pending")
-  local MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB/%dMB", $3,$2}')
-  local MODELS=$(ollama list 2>/dev/null | tail -n +2 | awk '{printf "  • %s\n",$1}' | head -3)
-
-  notify "⚡ DevCulture VPS — ONLINE!" \
-"╔══════════════════════════════════╗
-║   DevCulture Premium VPS Ready   ║
-╚══════════════════════════════════╝
-
-🔑  ssh root@bore.pub -p ${P22}
-    Password: ${ROOT_PASS}
-
-🌐  http://bore.pub:${P80}
-🤖  /api/ endpoint aktif
+🌐  Web UI
+    http://bore.pub:${P80}
 
 💾  RAM: ${MEM}
-🤖  Models:
-${MODELS:-  (loading...)}
-
 📲  ntfy.sh/${NTFY_TOPIC}
     powered by: DevCulture ©2026" \
   "high" "star2,computer,white_check_mark"
 }
 
 # ══════════════════════════════════════════
-# Bore tunnel per port
+# STEP 2: Init & set password
+# ══════════════════════════════════════════
+log "Setting root password..."
+echo "root:${ROOT_PASS}" | chpasswd 2>/dev/null || true
+
+# ══════════════════════════════════════════
+# Send boot notification
+# ══════════════════════════════════════════
+notify "🚀 DevCulture VPS — Booting..." \
+"🔄 Status    : Initializing services...
+🖥  OS        : Ubuntu 20.04 LTS
+🔑  Ports     : 22, 80, 443, 3000, 8080, 8888
+🤖  AI Model  : ${AUTO_PULL_MODEL} (auto-pull)
+🕐  Time      : ${START_TIME}
+📲  Monitor   : ntfy.sh/${NTFY_TOPIC}
+
+    powered by: DevCulture ©2026" \
+"default" "rocket,hourglass"
+
+# ══════════════════════════════════════════
+# STEP 3: SSH
+# ══════════════════════════════════════════
+log "Starting SSH..."
+mkdir -p /run/sshd
+/usr/sbin/sshd 2>/tmp/sshd.err && log "✅ SSH daemon started" || log "⚠️ SSH: $(cat /tmp/sshd.err)"
+
+# ══════════════════════════════════════════
+# STEP 4: Ollama
+# ══════════════════════════════════════════
+log "Starting Ollama..."
+ollama serve >/tmp/ollama.log 2>&1 &
+OLLAMA_PID=$!
+log "✅ Ollama started (PID $OLLAMA_PID)"
+
+# ══════════════════════════════════════════
+# STEP 5: Nginx
+# ══════════════════════════════════════════
+log "Starting Nginx..."
+nginx -t 2>/tmp/nginx-test.err && nginx 2>/tmp/nginx.err && log "✅ Nginx started" || {
+  log "⚠️ Nginx error: $(cat /tmp/nginx-test.err 2>/dev/null | head -3)"
+}
+
+# ══════════════════════════════════════════
+# STEP 6: Cloudflare Tunnel (optional)
+# ══════════════════════════════════════════
+start_cf_tunnel() {
+  [ -z "$CF_TUNNEL_TOKEN" ] && return
+  command -v cloudflared >/dev/null 2>&1 || return
+  log "Starting Cloudflare Tunnel..."
+  cloudflared tunnel --no-autoupdate run --token "$CF_TUNNEL_TOKEN" >/tmp/cloudflared.log 2>&1 &
+  sleep 15
+  grep -qiE "Connection established|Registered tunnel|conid=" /tmp/cloudflared.log 2>/dev/null && {
+    log "✅ Cloudflare Tunnel active"
+    notify "☁️ DevCulture — CF Tunnel Live!" \
+"Cloudflare Tunnel aktif! Domain statis tersedia 🎉
+    powered by: DevCulture ©2026" \
+    "high" "white_check_mark,cloud"
+  }
+}
+start_cf_tunnel &
+
+# ══════════════════════════════════════════
+# STEP 7: Bore tunnels (all ports)
 # ══════════════════════════════════════════
 bore_tunnel() {
   local lport="$1" label="$2"
@@ -101,16 +143,18 @@ bore_tunnel() {
   while true; do
     >"$logf"
     bore local "$lport" --to "$BORE_SERVER" >"$logf" 2>&1 &
-    local PID=$! PORT=""
-    for i in $(seq 1 40); do
+    local PID=$! PORT_BORE=""
+    for i in $(seq 1 45); do
       sleep 1
-      PORT=$(grep -oE "${BORE_SERVER}:[0-9]+" "$logf" 2>/dev/null | head -1 | cut -d: -f2)
-      [ -n "$PORT" ] && break
+      PORT_BORE=$(grep -oE "${BORE_SERVER}:[0-9]+" "$logf" 2>/dev/null | head -1 | cut -d: -f2)
+      [ -n "$PORT_BORE" ] && break
     done
-    if [ -n "$PORT" ]; then
-      log "[$label] bore.pub:$PORT"
-      echo "$PORT" > "/tmp/port_${lport}.txt"
-      [ "$lport" = "22" ] || [ "$lport" = "80" ] && update_summary
+    if [ -n "$PORT_BORE" ]; then
+      log "[$label] ✅ bore.pub:$PORT_BORE"
+      echo "$PORT_BORE" > "/tmp/port_${lport}.txt"
+      [ "$lport" = "22" ] || [ "$lport" = "80" ] && update_ssh_summary
+    else
+      log "[$label] ⚠️ bore tunnel timeout"
     fi
     wait $PID 2>/dev/null || true
     rm -f "/tmp/port_${lport}.txt"
@@ -118,123 +162,81 @@ bore_tunnel() {
   done
 }
 
-# ══════════════════════════════════════════
-# Cloudflare Tunnel
-# ══════════════════════════════════════════
-start_cf_tunnel() {
-  [ -z "$CF_TUNNEL_TOKEN" ] && { log "CF Tunnel: token tidak diset, skip"; return; }
-  command -v cloudflared >/dev/null 2>&1 || { log "cloudflared tidak ada, skip"; return; }
+bore_tunnel 22   "SSH-22"    &
+bore_tunnel 80   "HTTP-80"   &
+bore_tunnel 443  "HTTPS-443" &
+bore_tunnel 3000 "APP-3000"  &
+bore_tunnel 8888 "APP-8888"  &
 
-  log "Memulai Cloudflare Tunnel..."
-  cloudflared tunnel --no-autoupdate --loglevel info run \
-    --token "$CF_TUNNEL_TOKEN" >/tmp/cloudflared.log 2>&1 &
-
-  local ok=false
-  for i in $(seq 1 20); do
-    sleep 3
-    grep -qiE "Connection established|Registered tunnel|conid=" /tmp/cloudflared.log 2>/dev/null && { ok=true; break; }
-  done
-
-  if $ok; then
-    log "✅ Cloudflare Tunnel AKTIF"
-    notify "☁️ DevCulture — Domain Live!" \
-"╔══════════════════════════════════╗
-║    Cloudflare Tunnel Aktif! 🎉   ║
-╚══════════════════════════════════╝
-
-🌐  Domain statis tersedia!
-    HTTPS gratis & otomatis
-    Tidak berubah walau restart
-
-📲  ntfy.sh/${NTFY_TOPIC}
-    powered by: DevCulture ©2026" \
-    "high" "white_check_mark,cloud,globe_with_meridians"
-  fi
-}
+# Placeholder for ports that need a listener
+python3 -c "
+import http.server,socketserver,threading,time,os
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self,*a):pass
+    def do_GET(self):self.send_response(200);self.end_headers();self.wfile.write(b'DevCulture OK')
+socketserver.TCPServer.allow_reuse_address=True
+for p in [443,3000,8888]:
+    try:
+        s=socketserver.TCPServer(('',p),H)
+        threading.Thread(target=s.serve_forever,daemon=True).start()
+    except:pass
+time.sleep(86400*365)
+" &
 
 # ══════════════════════════════════════════
-# Auto-pull Ollama model
+# STEP 8: Auto-pull Ollama model
 # ══════════════════════════════════════════
 ollama_pull() {
   local model="${AUTO_PULL_MODEL:-smollm2}"
-  log "Menunggu Ollama ready untuk pull: $model"
-  local ready=false
+  log "Waiting Ollama ready (for $model pull)..."
   for i in $(seq 1 30); do
-    sleep 2
-    curl -s --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1 && { ready=true; break; }
+    sleep 3
+    curl -s --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1 && break
   done
-  [ "$ready" = false ] && { log "Ollama tidak ready"; return; }
+  notify "⬇️ DevCulture — Downloading AI Model" \
+"Auto-download model: $model
+Size: ~270MB (smollm2)
 
-  local IS_UPDATE=false
-  ollama list 2>/dev/null | grep -q "^$model" && IS_UPDATE=true
-
-  if $IS_UPDATE; then
-    notify "🔄 DevCulture — Update Model" \
-"Memperbarui model AI ke versi terbaru...
-Model : $model
-Status: Running in background
-
+Notif masuk saat selesai 🤖
     powered by: DevCulture ©2026" \
-    "low" "arrows_counterclockwise,robot_face"
-  else
-    notify "⬇️ DevCulture — Download Model" \
-"Auto-download model AI dimulai...
-
-Model : $model
-Size  : ~270MB (smollm2)
-
-Model tersedia:
-  • smollm2   = 270MB (default)
-  • tinyllama = 637MB
-  • phi3      = 2.3GB ⭐
-  • llama3.2  = 2.0GB
-
-Notifikasi masuk saat selesai 🎉
-    powered by: DevCulture ©2026" \
-    "default" "robot_face,hourglass"
-  fi
-
+  "default" "robot_face,hourglass"
   if ollama pull "$model" >>/tmp/ollama-pull.log 2>&1; then
     local SIZE=$(ollama list 2>/dev/null | grep "^$model" | awk '{print $3,$4}')
-    notify "✅ DevCulture — Model AI Siap!" \
+    notify "✅ DevCulture — AI Model Siap!" \
 "╔══════════════════════════════════╗
-║    Model AI Berhasil Dimuat! 🤖   ║
+║    Model AI Ready! 🤖             ║
 ╚══════════════════════════════════╝
 
 Model  : $model
 Size   : ${SIZE}
-Status : Ready to use!
 
-💬  Chat via SSH:
-    ollama run $model
-
-🌐  Chat via Web UI:
-    http://bore.pub:<port>
-
-Model lain (pull via SSH):
-  ollama pull phi3       # 2.3GB
-  ollama pull tinyllama  # 637MB
-  ollama pull mistral    # 4.1GB
+Chat via SSH:  ollama run $model
+Chat via Web:  http://bore.pub:<port>
 
     powered by: DevCulture ©2026" \
-    "high" "robot_face,white_check_mark,tada,star2"
-    update_summary
-  else
-    notify "❌ DevCulture — Pull Gagal" \
-"Gagal download model: $model
-Log: $(tail -3 /tmp/ollama-pull.log 2>/dev/null)
-
-Coba manual via SSH:
-  ollama pull $model
-
-    powered by: DevCulture ©2026" \
-    "high" "warning,robot_face"
+    "high" "robot_face,white_check_mark,tada"
   fi
 }
+ollama_pull &
 
 # ══════════════════════════════════════════
-# Monitor 5 menit
+# STEP 9: Watchdogs
 # ══════════════════════════════════════════
+ssh_wd() {
+  while true; do sleep 60
+    pgrep sshd>/dev/null || { /usr/sbin/sshd 2>/dev/null || true; }
+  done
+}
+nginx_wd() {
+  while true; do sleep 60
+    pgrep nginx>/dev/null || { nginx 2>/dev/null || true; }
+  done
+}
+ollama_wd() {
+  while true; do sleep 60
+    pgrep ollama>/dev/null || { ollama serve >/tmp/ollama.log 2>&1 & sleep 5; }
+  done
+}
 monitor_loop() {
   local n=0
   while true; do
@@ -242,154 +244,26 @@ monitor_loop() {
     local P22=$(cat /tmp/port_22.txt 2>/dev/null); [ -z "$P22" ] && continue
     local P80=$(cat /tmp/port_80.txt 2>/dev/null || echo "?")
     local MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB/%dMB (%.0f%%)",$3,$2,$3/$2*100}')
-    local DISK=$(df -h / 2>/dev/null | awk 'NR==2{print $5}')
-    local LOAD=$(cat /proc/loadavg | awk '{print $1,$2,$3}')
-    local OLLAMA_S="❌ Offline"; pgrep ollama>/dev/null && OLLAMA_S="✅ Online"
     local MODELS=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
     notify "📊 DevCulture VPS — Status #${n}" \
-"╔══════════════════════════════════╗
-║   DevCulture — System Monitor   ║
-╚══════════════════════════════════╝
-
-⏰  Uptime : $(uptime -p | sed 's/up //')
-💾  RAM    : ${MEM}
-⚡  Load   : ${LOAD}
-💽  Disk   : ${DISK} used
-🤖  Ollama : ${OLLAMA_S}
-📦  Models : ${MODELS:-(none)}
-
-🔑  SSH    : bore.pub:${P22}
-🌐  Web    : bore.pub:${P80}
+"⏰ Uptime : $(uptime -p | sed 's/up //')
+💾 RAM    : ${MEM}
+🤖 Ollama : $(pgrep ollama>/dev/null&&echo Online||echo Offline)
+📦 Models : ${MODELS:-(none)}
+🔑 SSH    : bore.pub:${P22}
+🌐 Web    : bore.pub:${P80}
 
     powered by: DevCulture ©2026" \
     "min" "bar_chart,clock4"
   done
 }
-
-# ══════════════════════════════════════════
-# Watchdogs
-# ══════════════════════════════════════════
-ssh_wd() {
-  while true; do sleep 60
-    pgrep sshd>/dev/null || {
-      notify "🚨 DevCulture — SSH Mati!" \
-"SSH daemon crash! Mencoba restart...
-    powered by: DevCulture ©2026" "urgent" "rotating_light,sos"
-      /usr/sbin/sshd && notify "🔄 DevCulture — SSH Restart" \
-"SSH berhasil direstart ✅
-    powered by: DevCulture ©2026" "high" "white_check_mark"
-    }
-  done
-}
-
-nginx_wd() {
-  while true; do sleep 60
-    pgrep nginx>/dev/null || {
-      notify "🚨 DevCulture — Nginx Mati!" \
-"Nginx crash! Mencoba restart...
-    powered by: DevCulture ©2026" "urgent" "rotating_light"
-      nginx && notify "🔄 DevCulture — Nginx Restart" \
-"Nginx berhasil direstart ✅
-    powered by: DevCulture ©2026" "high" "white_check_mark"
-    }
-  done
-}
-
-ollama_wd() {
-  while true; do sleep 60
-    pgrep ollama>/dev/null || {
-      notify "🚨 DevCulture — Ollama Mati!" \
-"Ollama crash! Mencoba restart...
-    powered by: DevCulture ©2026" "urgent" "robot_face,rotating_light"
-      ollama serve>/tmp/ollama.log 2>&1 &
-      sleep 10; pgrep ollama>/dev/null && notify "🔄 DevCulture — Ollama Restart" \
-"Ollama berhasil direstart ✅
-    powered by: DevCulture ©2026" "high" "robot_face,white_check_mark"
-    }
-  done
-}
-
-# ══════════════════════════════════════════
-# MAIN STARTUP
-# ══════════════════════════════════════════
-clear
-echo -e "\033[1;96m"
-cat << 'ASCII'
-  ____              ____      _ _
- |  _ \  _____   _/ ___|_  _| | |_ _   _ _ __ ___
- | | | |/ _ \ \ / / |   | | | | __| | | | '__/ _ \
- | |_| |  __/\ V /| |___| |_| | |_| |_| | | |  __/
- |____/ \___| \_/  \____|\__,_|\__|\__,_|_|  \___|
-
- Premium Cloud VPS — Ubuntu 20.04 Multi-Port
- powered by: DevCulture ©2026 linux
-ASCII
-echo -e "\033[0m"
-
-log "VPS startup — DevCulture Premium Cloud"
-log "ntfy  : $NTFY_TOPIC"
-log "Model : $AUTO_PULL_MODEL"
-log "Ports : 22 80 443 3000 8080 8888 11434"
-
-echo "root:${ROOT_PASS}" | chpasswd 2>/dev/null || true
-
-notify "🚀 DevCulture VPS — Booting..." \
-"╔══════════════════════════════════╗
-║  DevCulture Premium VPS Startup  ║
-╚══════════════════════════════════╝
-
-🔄  Status    : Initializing...
-🖥  OS        : Ubuntu 20.04 LTS
-🔑  Ports     : 22, 80, 443, 3000, 8080, 8888
-🤖  AI Model  : ${AUTO_PULL_MODEL} (auto-pull)
-🕐  Time      : ${START_TIME}
-📲  Monitor   : ntfy.sh/${NTFY_TOPIC}
-
-Semua layanan sedang disiapkan...
-    powered by: DevCulture ©2026" \
-"default" "rocket,hourglass,star2"
-
-# Start services
-/usr/sbin/sshd && log "✅ SSH"
-ollama serve >/tmp/ollama.log 2>&1 & sleep 3 && log "✅ Ollama"
-nginx -t 2>&1 | tail -1 && nginx && log "✅ Nginx"
-
-# Cloudflare Tunnel
-start_cf_tunnel &
-
-# Placeholder ports
-python3 -c "
-import http.server,socketserver,threading,time
-class H(http.server.BaseHTTPRequestHandler):
-    def log_message(self,*a):pass
-    def do_GET(self):self.send_response(200);self.end_headers();self.wfile.write(b'DevCulture VPS - OK')
-[threading.Thread(target=lambda p=p:socketserver.TCPServer(('',p),H).serve_forever(),daemon=True).start() for p in [443,3000,8888]]
-time.sleep(86400*365)
-" &
-sleep 1
-
-# Auto-pull Ollama model
-ollama_pull &
-
-# Bore tunnels (all ports)
-bore_tunnel 22   "SSH-22"    &
-bore_tunnel 80   "HTTP-80"   &
-bore_tunnel 443  "HTTPS-443" &
-bore_tunnel 3000 "APP-3000"  &
-bore_tunnel 8080 "APP-8080"  &
-bore_tunnel 8888 "APP-8888"  &
-
-# Watchdogs & monitor
 ssh_wd & nginx_wd & ollama_wd & monitor_loop &
 
-# Health check (Railway requirement)
-log "✅ Health check :${PORT:-8080}"
-exec python3 -c "
-import http.server,socketserver,os
-class H(http.server.BaseHTTPRequestHandler):
-    def log_message(self,*a):pass
-    def do_GET(self):
-        self.send_response(200);self.end_headers()
-        self.wfile.write(b'DevCulture VPS - Healthy')
-socketserver.TCPServer(('',int(os.environ.get('PORT','8080'))),H).serve_forever()
-"
+# ══════════════════════════════════════════
+# STEP 10: Keep health server alive (wait)
+# ══════════════════════════════════════════
+log "🟢 All services launched. Health server running on port $PORT"
+log "📱 Subscribe ntfy: ntfy.sh/$NTFY_TOPIC"
+
+# Wait for health server (keeps container alive)
+wait $HEALTH_PID
