@@ -1,244 +1,158 @@
 #!/bin/bash
-# DevCulture Premium VPS — Entrypoint v3
+set +e
 NTFY_TOPIC="${NTFY_TOPIC:-devculture-vps}"
 BORE_SERVER="${BORE_SERVER:-bore.pub}"
 ROOT_PASS="${ROOT_PASS:-DevCulture2026}"
 AUTO_PULL_MODEL="${AUTO_PULL_MODEL:-smollm2}"
 CF_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
 PORT="${PORT:-8080}"
-START_TIME=$(date '+%d %b %Y %H:%M:%S')
 
-log() { echo -e "[\033[1;96m$(date '+%H:%M:%S')\033[0m] \033[1;92m✦\033[0m $*"; }
+log() { echo "[$(date '+%H:%M:%S')] $*"; }
+log "=== DevCulture VPS starting on PORT=$PORT ==="
 
-log "STEP 1: Set root password..."
+# Step 1: root password
 echo "root:${ROOT_PASS}" | chpasswd 2>/dev/null || true
 
-# ══════════════════════════════════════════
-# STEP 2: Generate Nginx config with correct PORT
-# Write config directly - don't rely on sed
-# ══════════════════════════════════════════
-log "STEP 2: Generating Nginx config for PORT=$PORT..."
-cat > /etc/nginx/sites-available/ollama << NGINXEOF
+# Step 2: Write nginx config with correct port
+cat > /tmp/nginx-port.conf << EOF
 server {
     listen ${PORT};
     server_name _;
     client_max_body_size 100M;
-
     location /api/ {
         proxy_pass http://127.0.0.1:11434/api/;
         proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 600s;
-        proxy_send_timeout 600s;
         proxy_buffering off;
-        proxy_cache off;
+        proxy_read_timeout 600s;
         add_header Access-Control-Allow-Origin *;
-        add_header Access-Control-Allow-Methods "GET, POST, DELETE, OPTIONS";
-        add_header Access-Control-Allow-Headers "Content-Type, Authorization";
     }
-
     location /ollama/ {
         proxy_pass http://127.0.0.1:11434/;
-        proxy_http_version 1.1;
         proxy_buffering off;
-        proxy_cache off;
         proxy_read_timeout 600s;
     }
-
     location / {
         root /var/www/ollama-ui;
         index index.html;
         try_files \$uri \$uri/ /index.html;
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
-
     location /health {
-        return 200 "DevCulture VPS OK\n";
+        return 200 "OK\n";
         add_header Content-Type text/plain;
     }
 }
-NGINXEOF
+EOF
 
-log "Nginx config written for port $PORT"
-
-# Remove default nginx site to prevent conflicts
+cp /tmp/nginx-port.conf /etc/nginx/sites-available/ollama
 rm -f /etc/nginx/sites-enabled/default
-ln -sf /etc/nginx/sites-available/ollama /etc/nginx/sites-enabled/ollama 2>/dev/null || true
+ln -sf /etc/nginx/sites-available/ollama /etc/nginx/sites-enabled/ollama
 
-# ══════════════════════════════════════════
-# STEP 3: Start Nginx FIRST — Railway healthcheck needs it
-# ══════════════════════════════════════════
-log "STEP 3: Starting Nginx on port $PORT..."
-nginx -t 2>/tmp/nginx-test.err
-if [ $? -eq 0 ]; then
-    nginx 2>/tmp/nginx.err
-    log "✅ Nginx started on port $PORT"
+# Step 3: Start nginx (handles /health for Railway healthcheck)
+log "Starting nginx on port $PORT..."
+nginx -t 2>/tmp/nginx-err.txt
+NGINX_OK=$?
+if test $NGINX_OK -eq 0; then
+  nginx
+  log "Nginx started OK"
 else
-    log "⚠️ Nginx config error: $(cat /tmp/nginx-test.err)"
-    log "Starting fallback Python health server on port $PORT..."
-    python3 -c "
-import http.server, socketserver, os
-PORT = int(os.environ.get('PORT','8080'))
+  log "Nginx config error - starting python fallback"
+  cat /tmp/nginx-err.txt
+  python3 - << PYEOF &
+import http.server, socketserver, os, sys
+p = int(os.environ.get('PORT', '8080'))
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
         self.send_response(200)
-        self.send_header('Content-Type','text/plain')
+        self.send_header('Content-Type', 'text/plain')
         self.end_headers()
         self.wfile.write(b'DevCulture VPS OK')
 socketserver.TCPServer.allow_reuse_address = True
-with socketserver.TCPServer(('', PORT), H) as s:
-    s.serve_forever()
-" &
+socketserver.TCPServer(('', p), H).serve_forever()
+PYEOF
+fi
+sleep 2
+log "Health endpoint ready on port $PORT"
+
+# Step 4: SSH
+mkdir -p /run/sshd
+/usr/sbin/sshd 2>/dev/null && log "SSH started" || log "SSH failed"
+
+# Step 5: Ollama
+ollama serve >/tmp/ollama.log 2>&1 &
+log "Ollama started (PID $!)"
+
+# Step 6: ntfy boot notification
+curl -s --max-time 5 -X POST "https://ntfy.sh/$NTFY_TOPIC" \
+  -H "Title: DevCulture VPS Online" -H "Priority: high" -H "Tags: star2,rocket" \
+  -d "VPS online! PORT=$PORT SSH coming via bore tunnel. powered by DevCulture 2026" \
+  >/dev/null 2>&1 &
+
+# Step 7: Cloudflare tunnel (optional)
+if test -n "$CF_TUNNEL_TOKEN"; then
+  cloudflared tunnel --no-autoupdate run --token "$CF_TUNNEL_TOKEN" >/tmp/cf.log 2>&1 &
+  log "Cloudflare tunnel started"
 fi
 
-sleep 2
-log "✅ Health endpoint ready on port $PORT at /health"
-
-# ══════════════════════════════════════════
-# ntfy
-# ══════════════════════════════════════════
-notify() {
-  local title="$1" body="$2" priority="${3:-default}" tags="${4:-star2}"
-  curl -s --max-time 8 --retry 2 \
-    -X POST "https://ntfy.sh/$NTFY_TOPIC" \
-    -H "Title: $title" -H "Priority: $priority" -H "Tags: $tags" \
-    -H "Content-Type: text/plain" -d "$body" >/dev/null 2>&1 || true
-}
-
-notify "🚀 DevCulture VPS — Booting..." \
-"🔄 Status: Initializing... Port: ${PORT}
-🕐 Time: ${START_TIME}
-    powered by: DevCulture ©2026" "default" "rocket,hourglass"
-
-# ══════════════════════════════════════════
-# STEP 4: SSH
-# ══════════════════════════════════════════
-log "STEP 4: Starting SSH..."
-mkdir -p /run/sshd
-/usr/sbin/sshd 2>/tmp/sshd.err && log "✅ SSH started" || log "⚠️ SSH: $(cat /tmp/sshd.err)"
-
-# ══════════════════════════════════════════
-# STEP 5: Ollama
-# ══════════════════════════════════════════
-log "STEP 5: Starting Ollama..."
-ollama serve >/tmp/ollama.log 2>&1 &
-log "✅ Ollama started (PID $!)"
-
-# ══════════════════════════════════════════
-# STEP 6: Cloudflare Tunnel (optional)
-# ══════════════════════════════════════════
-start_cf_tunnel() {
-  [ -z "$CF_TUNNEL_TOKEN" ] && return
-  command -v cloudflared >/dev/null 2>&1 || return
-  log "Starting Cloudflare Tunnel..."
-  cloudflared tunnel --no-autoupdate run --token "$CF_TUNNEL_TOKEN" >/tmp/cloudflared.log 2>&1 &
-  sleep 15
-  grep -qiE "Connection established|Registered tunnel|conid=" /tmp/cloudflared.log 2>/dev/null && \
-    log "✅ Cloudflare Tunnel active"
-}
-start_cf_tunnel &
-
-# ══════════════════════════════════════════
-# STEP 7: Bore tunnels for SSH
-# ══════════════════════════════════════════
-update_ssh_summary() {
-  local P22=$(cat /tmp/port_22.txt 2>/dev/null)
-  [ -z "$P22" ] && return
-  local MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB/%dMB", $3,$2}')
-  notify "⚡ DevCulture VPS — ONLINE!" \
-"🔑 SSH: ssh root@bore.pub -p ${P22}
-Password: ${ROOT_PASS}
-🌐 Web: Railway URL port ${PORT}
-💾 RAM: ${MEM}
-    powered by: DevCulture ©2026" "high" "star2,computer,white_check_mark"
-}
-
+# Step 8: bore SSH tunnel
 bore_tunnel() {
-  local lport="$1" label="$2"
-  local logf="/tmp/bore_${lport}.log"
+  local lport="$1" label="$2" logf="/tmp/bore_${1}.log"
   while true; do
-    >"$logf"
     bore local "$lport" --to "$BORE_SERVER" >"$logf" 2>&1 &
-    local PID=$! PORT_BORE=""
+    local PID=$! BPORT=""
     for i in $(seq 1 45); do
       sleep 1
-      PORT_BORE=$(grep -oE "${BORE_SERVER}:[0-9]+" "$logf" 2>/dev/null | head -1 | cut -d: -f2)
-      [ -n "$PORT_BORE" ] && break
+      BPORT=$(grep -oE "${BORE_SERVER}:[0-9]+" "$logf" 2>/dev/null | head -1 | cut -d: -f2)
+      test -n "$BPORT" && break
     done
-    if [ -n "$PORT_BORE" ]; then
-      log "[$label] ✅ bore.pub:$PORT_BORE"
-      echo "$PORT_BORE" > "/tmp/port_${lport}.txt"
-      [ "$lport" = "22" ] && update_ssh_summary
+    if test -n "$BPORT"; then
+      log "$label bore.pub:$BPORT"
+      echo "$BPORT" > "/tmp/port_${lport}.txt"
+      if test "$lport" = "22"; then
+        curl -s --max-time 5 -X POST "https://ntfy.sh/$NTFY_TOPIC" \
+          -H "Title: DevCulture SSH Ready" -H "Priority: high" -H "Tags: computer,key" \
+          -d "SSH: ssh root@bore.pub -p $BPORT | Pass: $ROOT_PASS" >/dev/null 2>&1 || true
+      fi
     else
-      log "[$label] ⚠️ bore tunnel timeout"
+      log "$label bore timeout, retrying..."
     fi
     wait $PID 2>/dev/null || true
     rm -f "/tmp/port_${lport}.txt"
     sleep 5
   done
 }
+bore_tunnel 22 "SSH" &
 
-bore_tunnel 22 "SSH-22" &
-
+# Placeholder listeners for other bore ports
 python3 -c "
-import http.server,socketserver,threading,time
+import socketserver,threading,time,http.server
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self,*a):pass
     def do_GET(self):self.send_response(200);self.end_headers();self.wfile.write(b'OK')
 socketserver.TCPServer.allow_reuse_address=True
 for p in [443,3000,8888]:
-    try:
-        s=socketserver.TCPServer(('',p),H)
-        threading.Thread(target=s.serve_forever,daemon=True).start()
+    try:s=socketserver.TCPServer(('',p),H);threading.Thread(target=s.serve_forever,daemon=True).start()
     except:pass
-time.sleep(86400*365)
+time.sleep(86400)
 " &
-bore_tunnel 443 "HTTPS-443" &
-bore_tunnel 3000 "APP-3000" &
-bore_tunnel 8888 "APP-8888" &
 
-# ══════════════════════════════════════════
-# STEP 8: Auto-pull Ollama model
-# ══════════════════════════════════════════
-ollama_pull() {
-  local model="${AUTO_PULL_MODEL:-smollm2}"
-  log "Waiting for Ollama to be ready..."
-  for i in $(seq 1 30); do
-    sleep 3
+bore_tunnel 443 "HTTPS" &
+bore_tunnel 3000 "APP3000" &
+bore_tunnel 8888 "APP8888" &
+
+# Step 9: auto pull ollama model
+(
+  for i in $(seq 1 30); do sleep 3
     curl -s --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1 && break
   done
-  log "Pulling model: $model"
-  if ollama pull "$model" >>/tmp/ollama-pull.log 2>&1; then
-    notify "✅ DevCulture — AI Model Siap!" \
-"Model: $model siap digunakan!
-Chat: ollama run $model
-    powered by: DevCulture ©2026" "high" "robot_face,white_check_mark"
-  fi
-}
-ollama_pull &
+  log "Pulling model $AUTO_PULL_MODEL..."
+  ollama pull "$AUTO_PULL_MODEL" >/tmp/ollama-pull.log 2>&1 && log "Model ready: $AUTO_PULL_MODEL" || log "Model pull failed"
+) &
 
-# ══════════════════════════════════════════
-# STEP 9: Watchdogs
-# ══════════════════════════════════════════
-{ while true; do sleep 60; pgrep sshd>/dev/null || /usr/sbin/sshd 2>/dev/null; done } &
-{ while true; do sleep 60; pgrep nginx>/dev/null || nginx 2>/dev/null; done } &
-{ while true; do sleep 60; pgrep ollama>/dev/null || { ollama serve >/tmp/ollama.log 2>&1 & sleep 5; }; done } &
-{ n=0; while true; do sleep 300; n=$((n+1))
-  P22=$(cat /tmp/port_22.txt 2>/dev/null); [ -z "$P22" ] && continue
-  MEM=$(free -m 2>/dev/null | awk '/Mem:/{printf "%dMB/%dMB (%.0f%%)",$3,$2,$3/$2*100}')
-  notify "📊 Status #${n}" "⏰ $(uptime -p)
-💾 RAM: ${MEM}
-🤖 Ollama: $(pgrep ollama>/dev/null&&echo Online||echo Offline)
-🔑 SSH: bore.pub:${P22}
-    powered by: DevCulture ©2026" "min" "bar_chart,clock4"
-done } &
+# Step 10: watchdogs
+( while true; do sleep 60; pgrep sshd>/dev/null || /usr/sbin/sshd 2>/dev/null; done ) &
+( while true; do sleep 60; pgrep nginx>/dev/null || nginx 2>/dev/null; done ) &
+( while true; do sleep 60; pgrep ollama>/dev/null || ollama serve >/tmp/ollama.log 2>&1 & done ) &
 
-log "🟢 All services launched. Nginx on port $PORT"
-log "📱 ntfy: ntfy.sh/$NTFY_TOPIC"
-
+log "All services launched. Running on port $PORT."
 tail -f /dev/null
